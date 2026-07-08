@@ -2,20 +2,600 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>ユーザー一覧</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>家計簿ダッシュボード</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --panel: rgba(255, 255, 255, 0.84);
+            --text: #132238;
+            --muted: #667085;
+            --accent: #0f4c5c;
+            --income: #1d4ed8;
+            --expense: #dc2626;
+            --shadow: 0 20px 60px rgba(19, 34, 56, 0.12);
+            --radius: 24px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(15, 76, 92, 0.18), transparent 30%),
+                radial-gradient(circle at top right, rgba(217, 119, 6, 0.14), transparent 26%),
+                linear-gradient(180deg, #fbf8f3 0%, #f4efe7 100%);
+            min-height: 100vh;
+        }
+
+        .shell { width: min(1280px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 48px; }
+        .hero, .grid, .pie-row { display: grid; }
+        .hero { grid-template-columns: 1.6fr 0.9fr; gap: 20px; margin-bottom: 20px; }
+        .grid { grid-template-columns: 1.05fr 0.95fr; gap: 20px; align-items: start; }
+        .pie-row { grid-template-columns: 220px 1fr; gap: 16px; align-items: center; }
+        .stack { display: grid; gap: 20px; }
+
+        .hero-card,
+        .panel {
+            background: var(--panel);
+            backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.75);
+            box-shadow: var(--shadow);
+            border-radius: var(--radius);
+        }
+
+        .hero-card { padding: 28px; overflow: hidden; position: relative; }
+        .hero-card::after {
+            content: "";
+            position: absolute;
+            inset: auto -8% -24% auto;
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(15, 76, 92, 0.22), transparent 68%);
+            pointer-events: none;
+        }
+
+        .hero-side { padding: 22px; display: grid; gap: 12px; }
+        .metric, .stat, .entry, .legend-item, .split-row, .weekday, .day, .chart-box {
+            border: 1px solid rgba(19, 34, 56, 0.08);
+            background: rgba(255, 255, 255, 0.94);
+        }
+
+        .eyebrow {
+            display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px;
+            border-radius: 999px; background: rgba(15, 76, 92, 0.1); color: var(--accent);
+            font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+        }
+
+        h1, h2, h3, p { margin: 0; }
+        h1 { margin-top: 16px; font-size: clamp(2rem, 4vw, 3.8rem); line-height: 1.08; }
+        .hero p { margin-top: 14px; max-width: 56ch; color: var(--muted); line-height: 1.8; }
+        .hero-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 22px; }
+        .stat { border-radius: 18px; padding: 16px; }
+        .stat small, .metric .label { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+        .stat strong, .metric .value { display: block; margin-top: 8px; font-size: 1.35rem; font-weight: 700; }
+
+        .panel { padding: 20px; }
+        .panel h2 { font-size: 1.15rem; margin-bottom: 14px; }
+        .hint { color: var(--muted); font-size: 0.92rem; line-height: 1.7; margin-bottom: 16px; }
+
+        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .field { display: grid; gap: 8px; }
+        .field label { font-size: 0.86rem; color: var(--muted); }
+        .field input, .field select, .field textarea {
+            width: 100%; border: 1px solid rgba(19, 34, 56, 0.14); border-radius: 14px;
+            padding: 12px 14px; background: rgba(255, 255, 255, 0.94); color: var(--text); font: inherit;
+        }
+        .field textarea { min-height: 108px; resize: vertical; }
+        .span-2 { grid-column: span 2; }
+
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+        button {
+            border: 0; border-radius: 999px; padding: 12px 16px; background: var(--accent);
+            color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+        }
+        button.secondary { background: rgba(15, 76, 92, 0.12); color: var(--accent); }
+
+        .list, .legend, .split-list, .participants { display: grid; gap: 10px; }
+        .entry, .legend-item, .split-row { padding: 14px; border-radius: 18px; }
+        .entry-top { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+        .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(15, 76, 92, 0.1); color: var(--accent); font-size: 12px; font-weight: 700; }
+        .amount.income { color: var(--income); font-weight: 800; }
+        .amount.expense { color: var(--expense); font-weight: 800; }
+        .muted { color: var(--muted); font-size: 0.92rem; }
+
+        .chart-box { border-radius: 20px; padding: 14px; }
+        canvas { width: 100%; height: 240px; display: block; }
+        .pie { width: 220px; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(#cbd5e1 0deg 360deg); position: relative; }
+        .pie::after { content: ""; position: absolute; inset: 28px; border-radius: 50%; background: #fff; }
+
+        .calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+        .weekday, .day { min-height: 72px; padding: 10px; border-radius: 14px; }
+        .weekday { min-height: auto; text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); }
+        .day .date { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 10px; }
+        .day .income-day { color: var(--income); font-weight: 700; }
+        .day .expense-day { color: var(--expense); font-weight: 700; }
+        .day.saturday { background: rgba(14, 165, 233, 0.1); }
+        .day.sunday, .day.holiday { background: rgba(220, 38, 38, 0.1); }
+        .day.empty { background: transparent; border: 1px dashed rgba(19, 34, 56, 0.12); }
+
+        .participant-row { display: grid; grid-template-columns: 1fr 120px; gap: 10px; }
+
+        @media (max-width: 1024px) {
+            .hero, .grid, .pie-row { grid-template-columns: 1fr; }
+            .hero-grid, .form-grid { grid-template-columns: 1fr; }
+            .span-2 { grid-column: auto; }
+        }
+
+        @media (max-width: 640px) {
+            .shell { width: min(100% - 18px, 100%); padding-top: 12px; }
+            .hero-card, .panel, .hero-side { padding: 16px; }
+            .calendar { gap: 6px; }
+            .weekday, .day { min-height: 62px; padding: 8px; }
+        }
+    </style>
 </head>
 <body>
-    <h1>ユーザー一覧</h1>
-    <ul>
-        <% users.forEach(user => { %>
-            <li><%= user.name %> (ID: <%= user.id %>)</li>
-        <% }) %>
-    </ul>
+    <div class="shell">
+        <section class="hero">
+            <div class="hero-card">
+                <div class="eyebrow">three-layer finance dashboard</div>
+                <h1>家計簿、割り勘、分析、カレンダーを一画面で回す雛形</h1>
+                <p>支出・収入は JSON API 経由で保存し、満足度と投資・消費・浪費の区分も一緒に持たせます。月次グラフと日別カレンダーは記録されたデータから自動生成します。</p>
 
-    <h2>ユーザー追加</h2>
-    <form action="/users" method="post">
-        <input type="text" name="name" placeholder="ユーザー名を入力" required>
-        <button type="submit">追加</button>
-    </form>
+                <div class="hero-grid">
+                    <div class="stat"><small>今月の収入</small><strong id="heroIncome"><%= initialData.monthSummary.totals.income.toLocaleString("ja-JP") %>円</strong></div>
+                    <div class="stat"><small>今月の支出</small><strong id="heroExpense"><%= initialData.monthSummary.totals.expense.toLocaleString("ja-JP") %>円</strong></div>
+                    <div class="stat"><small>今月の収支</small><strong id="heroBalance"><%= initialData.monthSummary.totals.balance.toLocaleString("ja-JP") %>円</strong></div>
+                </div>
+            </div>
+
+            <aside class="hero-side panel">
+                <div class="metric">
+                    <div class="label">分析対象月</div>
+                    <strong class="value" id="summaryMonth"><%= initialData.monthKey %></strong>
+                    <div class="muted">月次分析とカレンダーはこの月を基準に切り替えます。</div>
+                </div>
+                <div class="metric">
+                    <div class="label">記録件数</div>
+                    <strong class="value" id="transactionCount"><%= initialData.transactions.length %>件</strong>
+                    <div class="muted">入力済みの家計データと割り勘記録を一覧表示します。</div>
+                </div>
+            </aside>
+        </section>
+
+        <div class="grid">
+            <div class="stack">
+                <section class="panel">
+                    <h2>支出・収入の記録</h2>
+                    <p class="hint">金額、日付、カテゴリー、支払い方法、満足度、投資・消費・浪費をまとめて送信します。レシート画像 URL と OCR テキストの雛形も置いてあります。</p>
+
+                    <form id="transactionForm">
+                        <div class="form-grid">
+                            <div class="field">
+                                <label for="kind">区分</label>
+                                <select id="kind" name="kind">
+                                    <% enums.transactionKinds.forEach((kind) => { %><option value="<%= kind %>"><%= kind %></option><% }) %>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="amount">金額</label>
+                                <input id="amount" name="amount" type="number" min="0" placeholder="1200" required>
+                            </div>
+                            <div class="field">
+                                <label for="occurredAt">日付</label>
+                                <input id="occurredAt" name="occurredAt" type="date" value="<%= initialData.monthKey %>-01" required>
+                            </div>
+                            <div class="field">
+                                <label for="category">カテゴリー</label>
+                                <input id="category" name="category" type="text" placeholder="食費 / サブスク / 交通費" required>
+                            </div>
+                            <div class="field">
+                                <label for="paymentMethod">支払い方法</label>
+                                <select id="paymentMethod" name="paymentMethod">
+                                    <% enums.paymentMethods.forEach((method) => { %><option value="<%= method %>"><%= method %></option><% }) %>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="satisfaction">満足度</label>
+                                <select id="satisfaction" name="satisfaction">
+                                    <% enums.satisfactionLevels.forEach((level) => { %><option value="<%= level %>"><%= level %></option><% }) %>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="spendingStyle">投資・消費・浪費</label>
+                                <select id="spendingStyle" name="spendingStyle">
+                                    <% enums.spendingStyles.forEach((style) => { %><option value="<%= style %>"><%= style %></option><% }) %>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="receiptImageUrl">レシート画像 URL</label>
+                                <input id="receiptImageUrl" name="receiptImageUrl" type="url" placeholder="https://example.com/receipt.jpg">
+                            </div>
+                            <div class="field span-2">
+                                <label for="receiptText">OCR 取得テキスト</label>
+                                <textarea id="receiptText" name="receiptText" placeholder="レシートから読んだ内容を保存"></textarea>
+                            </div>
+                            <div class="field span-2">
+                                <label for="memo">メモ</label>
+                                <textarea id="memo" name="memo" placeholder="用途、購入理由、分類メモ"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="actions">
+                            <button type="submit">保存する</button>
+                            <button type="button" class="secondary" id="reloadDashboard">最新データを再取得</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="panel">
+                    <h2>記録一覧</h2>
+                    <div id="transactionList" class="list"></div>
+                </section>
+            </div>
+
+            <div class="stack">
+                <section class="panel">
+                    <h2>月次収支グラフ</h2>
+                    <p class="hint">年間の収入・支出を自動で描画します。月ごとの棒を見れば、収支の山と谷が一目で追えます。</p>
+                    <div class="chart-box"><canvas id="monthlyChart"></canvas></div>
+                    <div class="muted" id="monthlyChartLabel"></div>
+                </section>
+
+                <section class="panel">
+                    <h2>月次分析</h2>
+                    <div class="form-grid">
+                        <div class="field"><label for="analysisMonth">対象月</label><input id="analysisMonth" type="month" value="<%= initialData.monthKey %>"></div>
+                        <div class="field"><label for="analysisYear">グラフ年</label><input id="analysisYear" type="number" value="<%= initialData.year %>"></div>
+                    </div>
+                    <div class="actions"><button type="button" id="refreshAnalysis">分析を更新</button></div>
+
+                    <div class="hero-grid" style="margin-top: 18px;">
+                        <div class="stat"><small>平均日次支出</small><strong id="averageDailyExpense"><%= initialData.monthSummary.totals.averageDailyExpense.toLocaleString("ja-JP") %>円</strong></div>
+                        <div class="stat"><small>満足度</small><strong id="satisfactionSummary"><%= initialData.monthSummary.satisfactionBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") || "未記録" %></strong></div>
+                        <div class="stat"><small>浪費比率</small><strong id="spendingStyleSummary"><%= initialData.monthSummary.spendingStyleBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") || "未記録" %></strong></div>
+                    </div>
+
+                    <div class="pie-row" style="margin-top: 18px;">
+                        <div class="pie" id="categoryPie"></div>
+                        <div class="legend" id="categoryLegend"></div>
+                    </div>
+                </section>
+
+                <section class="panel">
+                    <h2>割り勘機能</h2>
+                    <p class="hint">合計額と立て替え額を入力すると、誰が誰にいくら払うかを計算します。結果は記録一覧に保存します。</p>
+
+                    <form id="splitForm">
+                        <div class="form-grid">
+                            <div class="field span-2"><label for="splitTitle">名称</label><input id="splitTitle" name="splitTitle" type="text" placeholder="旅行の割り勘" value="グループ精算"></div>
+                            <div class="field"><label for="totalAmount">合計額</label><input id="totalAmount" name="totalAmount" type="number" min="0" placeholder="12000" required></div>
+                        </div>
+
+                        <div class="participants" id="participants"></div>
+
+                        <div class="actions">
+                            <button type="button" class="secondary" id="addParticipant">参加者を追加</button>
+                            <button type="submit">計算して保存</button>
+                        </div>
+                    </form>
+
+                    <div class="split-list" id="splitResult"></div>
+                </section>
+
+                <section class="panel">
+                    <h2>カレンダー</h2>
+                    <p class="hint">日ごとの支出は赤、収入は青で色分けし、土曜日は水色、日曜と祝日は紅色で強調します。</p>
+                    <div class="calendar" id="calendar"></div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script id="initial-data" type="application/json"><%- JSON.stringify(initialData).replace(/</g, "\\u003c") %></script>
+
+    <script>
+        const initialData = JSON.parse(document.getElementById("initial-data").textContent || "{}");
+        const currencyFormatter = new Intl.NumberFormat("ja-JP");
+        const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
+        let latestMonthlyGraph = initialData.yearlyGraph;
+
+        const elements = {
+            transactionList: document.getElementById("transactionList"),
+            monthlyChart: document.getElementById("monthlyChart"),
+            monthlyChartLabel: document.getElementById("monthlyChartLabel"),
+            categoryPie: document.getElementById("categoryPie"),
+            categoryLegend: document.getElementById("categoryLegend"),
+            calendar: document.getElementById("calendar"),
+            splitResult: document.getElementById("splitResult"),
+            participants: document.getElementById("participants"),
+            transactionForm: document.getElementById("transactionForm"),
+            splitForm: document.getElementById("splitForm"),
+            analysisMonth: document.getElementById("analysisMonth"),
+            analysisYear: document.getElementById("analysisYear"),
+        };
+
+        function api(path, options = {}) {
+            return fetch(path, {
+                headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+                ...options,
+            }).then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.message || "API request failed");
+                return data;
+            });
+        }
+
+        function formatAmount(value) { return `${currencyFormatter.format(value)}円`; }
+
+        function nthWeekdayOfMonth(year, monthIndex, weekday, occurrence) {
+            const firstDay = new Date(year, monthIndex, 1).getDay();
+            const offset = (weekday - firstDay + 7) % 7;
+            return 1 + offset + (occurrence - 1) * 7;
+        }
+
+        function vernalEquinoxDay(year) {
+            return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+        }
+
+        function autumnalEquinoxDay(year) {
+            return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+        }
+
+        function buildHolidaySet(monthKey) {
+            const [yearText = "1970", monthText = "01"] = monthKey.split("-");
+            const year = Number(yearText);
+            const monthIndex = Number(monthText) - 1;
+            const dates = new Set();
+            const push = (day) => dates.add(`${monthKey}-${String(day).padStart(2, "0")}`);
+
+            const fixedHolidays = [
+                [0, 1],
+                [1, 11],
+                [1, 23],
+                [3, 29],
+                [4, 3],
+                [4, 4],
+                [4, 5],
+                [7, 11],
+                [10, 3],
+                [10, 23],
+            ];
+
+            fixedHolidays.forEach(([holidayMonth, day]) => {
+                if (holidayMonth === monthIndex) {
+                    push(day);
+                }
+            });
+
+            if (monthIndex === 0) push(nthWeekdayOfMonth(year, 0, 1, 2));
+            if (monthIndex === 6) push(nthWeekdayOfMonth(year, 6, 1, 3));
+            if (monthIndex === 8) push(nthWeekdayOfMonth(year, 8, 1, 3));
+            if (monthIndex === 9) push(nthWeekdayOfMonth(year, 9, 1, 2));
+            if (monthIndex === 2) push(vernalEquinoxDay(year));
+            if (monthIndex === 8) push(autumnalEquinoxDay(year));
+
+            const allDates = Array.from(dates);
+            allDates.forEach((dateKey) => {
+                const date = new Date(`${dateKey}T00:00:00`);
+                if (date.getDay() === 0) {
+                    const substitute = new Date(date);
+                    substitute.setDate(substitute.getDate() + 1);
+                    const substituteKey = `${substitute.getFullYear()}-${String(substitute.getMonth() + 1).padStart(2, "0")}-${String(substitute.getDate()).padStart(2, "0")}`;
+                    dates.add(substituteKey);
+                }
+            });
+
+            return dates;
+        }
+
+        function renderTransactions(items) {
+            elements.transactionList.innerHTML = items.length
+                ? items.map((item) => `
+                    <article class="entry">
+                        <div class="entry-top">
+                            <div>
+                                <div class="badge">${item.kind} / ${item.category}</div>
+                                <h3 style="margin-top: 10px; font-size: 1rem;">${item.memo || item.receiptText || "メモなし"}</h3>
+                            </div>
+                            <div class="amount ${item.kind === "INCOME" ? "income" : "expense"}">${item.kind === "INCOME" ? "+" : "-"}${item.amountLabel}</div>
+                        </div>
+                        <p class="muted" style="margin-top: 10px;">${item.occurredAt} / ${item.paymentMethod} / 満足度:${item.satisfaction} / 区分:${item.spendingStyle}</p>
+                    </article>
+                `).join("")
+                : '<div class="entry"><p class="muted">まだ記録がありません。</p></div>';
+        }
+
+        function renderCategoryPie(items) {
+            if (!items.length) {
+                elements.categoryPie.style.background = "conic-gradient(#cbd5e1 0deg 360deg)";
+                elements.categoryLegend.innerHTML = '<div class="legend-item"><span>未分類</span><strong>0円</strong></div>';
+                return;
+            }
+            const palette = ["#0f4c5c", "#1d4ed8", "#d97706", "#dc2626", "#16a34a", "#7c3aed"];
+            let currentAngle = 0;
+            const segments = [];
+            items.forEach((item, index) => {
+                const angle = Math.max(0.5, item.share) / 100 * 360;
+                segments.push(`${palette[index % palette.length]} ${currentAngle}deg ${currentAngle + angle}deg`);
+                currentAngle += angle;
+            });
+            elements.categoryPie.style.background = `conic-gradient(${segments.join(", ")})`;
+            elements.categoryLegend.innerHTML = items.map((item, index) => `
+                <div class="legend-item">
+                    <span><span style="display:inline-block;width:10px;height:10px;border-radius:999px;background:${palette[index % palette.length]};margin-right:8px;"></span>${item.category}</span>
+                    <strong>${formatAmount(item.amount)} / ${item.share}%</strong>
+                </div>
+            `).join("");
+        }
+
+        function renderCalendar(rows) {
+            const holidaySet = buildHolidaySet(rows[0]?.dateKey?.slice(0, 7) || initialData.monthKey);
+            const weekdayHeader = weekdayLabels.map((label) => `<div class="weekday">${label}</div>`).join("");
+            const firstDay = rows[0]?.weekday ?? 0;
+            const leadingEmpty = Array.from({ length: firstDay }, () => '<div class="day empty"></div>').join("");
+            const days = rows.map((row) => {
+                const classes = ["day"];
+                if (row.weekday === 0) classes.push("sunday");
+                if (row.weekday === 6) classes.push("saturday");
+                if (holidaySet.has(row.dateKey)) classes.push("holiday");
+                return `
+                    <div class="${classes.join(" ")}">
+                        <div class="date"><span>${row.day}</span><span>${weekdayLabels[row.weekday]}</span></div>
+                        <div class="income-day">+${row.income ? currencyFormatter.format(row.income) : 0}</div>
+                        <div class="expense-day">-${row.expense ? currencyFormatter.format(row.expense) : 0}</div>
+                    </div>
+                `;
+            }).join("");
+            elements.calendar.innerHTML = `${weekdayHeader}${leadingEmpty}${days}`;
+        }
+
+        function renderMonthlyChart(graph) {
+            latestMonthlyGraph = graph;
+            const canvas = elements.monthlyChart;
+            const context = canvas.getContext("2d");
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            context.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+            context.clearRect(0, 0, width, height);
+
+            const padding = { top: 18, right: 16, bottom: 36, left: 34 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+            const maxValue = Math.max(1, ...graph.flatMap((item) => [item.income, item.expense]));
+            const barWidth = chartWidth / graph.length * 0.35;
+            const groupWidth = chartWidth / graph.length;
+
+            context.strokeStyle = "rgba(19, 34, 56, 0.1)";
+            context.fillStyle = "#667085";
+            context.font = "12px sans-serif";
+
+            for (let step = 0; step <= 4; step += 1) {
+                const y = padding.top + chartHeight - (chartHeight / 4) * step;
+                context.beginPath(); context.moveTo(padding.left, y); context.lineTo(width - padding.right, y); context.stroke();
+                context.fillText(Math.round((maxValue / 4) * step).toLocaleString("ja-JP"), 6, y + 4);
+            }
+
+            graph.forEach((item, index) => {
+                const centerX = padding.left + groupWidth * index + groupWidth / 2;
+                const incomeHeight = (item.income / maxValue) * chartHeight;
+                const expenseHeight = (item.expense / maxValue) * chartHeight;
+                const incomeX = centerX - barWidth - 3;
+                const expenseX = centerX + 3;
+
+                context.fillStyle = "#1d4ed8";
+                context.fillRect(incomeX, padding.top + chartHeight - incomeHeight, barWidth, incomeHeight);
+                context.fillStyle = "#dc2626";
+                context.fillRect(expenseX, padding.top + chartHeight - expenseHeight, barWidth, expenseHeight);
+                context.fillStyle = "#132238";
+                context.fillText(String(index + 1), centerX - 4, height - 14);
+            });
+
+            elements.monthlyChartLabel.textContent = `青が収入、赤が支出です。対象年: ${graph[0]?.monthKey?.slice(0, 4) ?? initialData.year}`;
+        }
+
+        function renderSplitSessions(items) {
+            elements.splitResult.innerHTML = items.length
+                ? items.map((session) => `
+                    <article class="entry">
+                        <div class="entry-top">
+                            <div><div class="badge">${session.title}</div><h3 style="margin-top: 10px; font-size: 1rem;">合計 ${formatAmount(session.totalAmount)}</h3></div>
+                            <div class="muted">${session.createdAt.slice(0, 10)}</div>
+                        </div>
+                        <div class="split-list" style="margin-top: 12px;">
+                            ${(session.result || []).map((transfer) => `<div class="split-row"><span>${transfer.from} → ${transfer.to}</span><strong>${formatAmount(transfer.amount)}</strong></div>`).join("") || '<div class="split-row"><span>精算不要</span><strong>0円</strong></div>'}
+                        </div>
+                    </article>
+                `).join("")
+                : '<div class="entry"><p class="muted">割り勘記録はまだありません。</p></div>';
+        }
+
+        function updateSummary(summary) {
+            document.getElementById("heroIncome").textContent = formatAmount(summary.totals.income);
+            document.getElementById("heroExpense").textContent = formatAmount(summary.totals.expense);
+            document.getElementById("heroBalance").textContent = formatAmount(summary.totals.balance);
+            document.getElementById("summaryMonth").textContent = summary.monthKey;
+            document.getElementById("averageDailyExpense").textContent = formatAmount(summary.totals.averageDailyExpense);
+            document.getElementById("satisfactionSummary").textContent = summary.satisfactionBreakdown.length ? summary.satisfactionBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") : "未記録";
+            document.getElementById("spendingStyleSummary").textContent = summary.spendingStyleBreakdown.length ? summary.spendingStyleBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") : "未記録";
+            renderCategoryPie(summary.categoryBreakdown);
+            renderCalendar(summary.dailyRows);
+        }
+
+        function createParticipantRow(name = "", paidAmount = "") {
+            const row = document.createElement("div");
+            row.className = "participant-row";
+            row.innerHTML = `<input type="text" placeholder="参加者名" value="${name}"><input type="number" min="0" placeholder="立て替え額" value="${paidAmount}">`;
+            return row;
+        }
+
+        function syncParticipantRows() {
+            if (!elements.participants.children.length) {
+                elements.participants.appendChild(createParticipantRow("Aさん", "0"));
+                elements.participants.appendChild(createParticipantRow("Bさん", "0"));
+            }
+        }
+
+        async function refreshDashboard() {
+            const month = elements.analysisMonth.value || initialData.monthKey;
+            const year = Number(elements.analysisYear.value || initialData.year);
+            const [transactions, summary, monthlyGraph, splitSessions] = await Promise.all([
+                api(`/api/transactions?month=${month}`),
+                api(`/api/analytics/summary?month=${month}`),
+                api(`/api/analytics/monthly?year=${year}`),
+                api(`/api/split-sessions`),
+            ]);
+            renderTransactions(transactions.items);
+            updateSummary(summary);
+            renderMonthlyChart(monthlyGraph.items);
+            renderSplitSessions(splitSessions.items);
+            document.getElementById("transactionCount").textContent = `${transactions.items.length}件`;
+        }
+
+        elements.transactionForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const formData = new FormData(elements.transactionForm);
+            await api("/api/transactions", { method: "POST", body: JSON.stringify(Object.fromEntries(formData.entries())) });
+            elements.transactionForm.reset();
+            await refreshDashboard();
+        });
+
+        elements.splitForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const rows = [...elements.participants.querySelectorAll(".participant-row")];
+            const participants = rows.map((row) => {
+                const [nameInput, paidInput] = row.querySelectorAll("input");
+                return { name: nameInput.value, paidAmount: paidInput.value };
+            });
+
+            await api("/api/split-sessions", {
+                method: "POST",
+                body: JSON.stringify({ title: document.getElementById("splitTitle").value, totalAmount: document.getElementById("totalAmount").value, participants }),
+            });
+            await refreshDashboard();
+        });
+
+        document.getElementById("addParticipant").addEventListener("click", () => { elements.participants.appendChild(createParticipantRow()); });
+        document.getElementById("refreshAnalysis").addEventListener("click", refreshDashboard);
+        document.getElementById("reloadDashboard").addEventListener("click", refreshDashboard);
+        elements.analysisMonth.addEventListener("change", refreshDashboard);
+        elements.analysisYear.addEventListener("change", refreshDashboard);
+        window.addEventListener("resize", () => { renderMonthlyChart(latestMonthlyGraph); });
+
+        syncParticipantRows();
+        renderTransactions(initialData.transactions);
+        updateSummary(initialData.monthSummary);
+        renderMonthlyChart(initialData.yearlyGraph);
+        renderSplitSessions(initialData.splitSessions);
+    </script>
 </body>
 </html>

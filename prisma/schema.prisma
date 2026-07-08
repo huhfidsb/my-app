@@ -9,10 +9,59 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
-model User {
-  id   Int    @id @default(autoincrement())
-  name String
+enum TransactionKind {
+  INCOME
+  EXPENSE
 }
+
+enum SatisfactionLevel {
+  SATISFIED
+  NORMAL
+  REGRET
+}
+
+enum SpendingStyle {
+  INVESTMENT
+  CONSUMPTION
+  WASTE
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  QR
+  BANK_TRANSFER
+  OTHER
+}
+
+model Transaction {
+  id              Int               @id @default(autoincrement())
+  kind            TransactionKind
+  amount          Int
+  occurredAt      DateTime
+  category        String
+  paymentMethod   PaymentMethod
+  satisfaction    SatisfactionLevel @default(NORMAL)
+  spendingStyle   SpendingStyle     @default(CONSUMPTION)
+  memo            String?
+  receiptImageUrl String?
+  receiptText     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model SplitSettlement {
+  id                Int      @id @default(autoincrement())
+  title             String
+  totalAmount       Int
+  participantsText  String
+  contributionsText String
+  resultText        String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
