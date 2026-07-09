@@ -1,9 +1,5 @@
 import "dotenv/config";
 import express from "express";
-// @ts-ignore - dependency is added in package.json and resolved when installed locally.
-import Database from "better-sqlite3";
-// @ts-ignore - dependency is added in package.json and resolved when installed locally.
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "./generated/prisma/client.js";
 
 type TransactionKind = "INCOME" | "EXPENSE";
@@ -11,11 +7,7 @@ type SatisfactionLevel = "SATISFIED" | "NORMAL" | "REGRET";
 type SpendingStyle = "INVESTMENT" | "CONSUMPTION" | "WASTE";
 type PaymentMethod = "CASH" | "CARD" | "QR" | "BANK_TRANSFER" | "OTHER";
 
-const sqlitePath =
-  process.env.DATABASE_URL?.replace("file:", "") || "./prisma/dev.db";
-const sqlite = new Database(sqlitePath);
-const adapter = new PrismaBetterSqlite3(sqlite);
-const prisma = new PrismaClient({ adapter, log: ["warn", "error"] }) as any;
+const prisma = new PrismaClient({ log: ["warn", "error"] } as any) as any;
 
 const app = express();
 const PORT = Number(process.env.PORT || 8888);
@@ -638,7 +630,6 @@ app.listen(PORT, () => {
 
 async function shutdown() {
   await prisma.$disconnect();
-  sqlite.close();
 }
 
 process.on("SIGINT", async () => {
