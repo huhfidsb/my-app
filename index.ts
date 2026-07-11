@@ -350,17 +350,14 @@ function calculateSplitSettlement(
 }
 
 async function buildMonthSummary(monthKey: string) {
-  const transactions = (await prisma.$transaction.findMany({
+  const transactions = await prisma.transaction.findMany({
     where: {
       occurredAt: {
         gte: startOfMonthUtc(monthKey),
         lt: endOfMonthUtc(monthKey),
       },
     },
-    orderBy: {
-      occurredAt: "asc",
-    },
-  })) as unknown as TransactionRecord[];
+  });
 
   const transactionViews = transactions.map(transactionToView);
   const income = sum(
@@ -406,14 +403,14 @@ async function buildMonthSummary(monthKey: string) {
 }
 
 async function getYearlyGraphData(year: number) {
-  const transactions = (await prisma.$transaction.findMany({
+  const transactions = await prisma.transaction.findMany({
     where: {
       occurredAt: {
         gte: startOfYearUtc(year),
         lt: endOfYearUtc(year),
       },
     },
-  })) as unknown as TransactionRecord[];
+  });
 
   return buildMonthlyGraph(transactions, year);
 }
@@ -493,7 +490,7 @@ app.post("/api/transactions", async (req, res) => {
       return;
     }
 
-    const transaction = await prisma.$transaction.create({
+    const transaction = await prisma.transaction.create({
       data: {
         kind: parseEnumValue(req.body.kind, transactionKinds, "EXPENSE"),
         amount: clampInt(req.body.amount),
