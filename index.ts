@@ -1,13 +1,26 @@
 import "dotenv/config";
 import express from "express";
-import { PrismaClient } from "./generated/prisma/client.js";
+// @ts-ignore - installed during the Render build
+
+import { PrismaClient } from "./generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 
 type TransactionKind = "INCOME" | "EXPENSE";
 type SatisfactionLevel = "SATISFIED" | "NORMAL" | "REGRET";
 type SpendingStyle = "INVESTMENT" | "CONSUMPTION" | "WASTE";
 type PaymentMethod = "CASH" | "CARD" | "QR" | "BANK_TRANSFER" | "OTHER";
 
-const prisma = new PrismaClient({ log: ["warn", "error"] } as any) as any;
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL!,
+});
+
+const adapter = new PrismaPg(pool);
+
+const prisma = new PrismaClient({
+  adapter,
+  log: ["query"],
+});
 
 const app = express();
 const PORT = Number(process.env.PORT || 8888);
@@ -149,12 +162,12 @@ async function fetchTransactions(
       }
     : undefined;
 
-  const transactions = (await prisma.transaction.findMany({
+  const transactions = await prisma.transaction.findMany({
     where,
     orderBy: {
       occurredAt: "desc",
     },
-  })) as unknown as TransactionRecord[];
+  });
 
   return transactions.map(transactionToView);
 }
@@ -337,7 +350,7 @@ function calculateSplitSettlement(
 }
 
 async function buildMonthSummary(monthKey: string) {
-  const transactions = (await prisma.transaction.findMany({
+  const transactions = (await prisma.$transaction.findMany({
     where: {
       occurredAt: {
         gte: startOfMonthUtc(monthKey),
@@ -393,7 +406,7 @@ async function buildMonthSummary(monthKey: string) {
 }
 
 async function getYearlyGraphData(year: number) {
-  const transactions = (await prisma.transaction.findMany({
+  const transactions = (await prisma.$transaction.findMany({
     where: {
       occurredAt: {
         gte: startOfYearUtc(year),
@@ -480,7 +493,7 @@ app.post("/api/transactions", async (req, res) => {
       return;
     }
 
-    const transaction = await prisma.transaction.create({
+    const transaction = await prisma.$transaction.create({
       data: {
         kind: parseEnumValue(req.body.kind, transactionKinds, "EXPENSE"),
         amount: clampInt(req.body.amount),
