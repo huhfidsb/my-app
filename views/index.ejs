@@ -31,9 +31,10 @@
         }
 
         .shell { width: min(1280px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 48px; }
-        .hero, .grid, .pie-row { display: grid; }
+        .hero, .grid, .pie-row, .pie-compare { display: grid; }
         .hero { grid-template-columns: 1.6fr 0.9fr; gap: 20px; margin-bottom: 20px; }
         .grid { grid-template-columns: 1.05fr 0.95fr; gap: 20px; align-items: start; }
+        .pie-compare { grid-template-columns: 1fr 1fr; gap: 20px; }
         .pie-row { grid-template-columns: 220px 1fr; gap: 16px; align-items: center; }
         .stack { display: grid; gap: 20px; }
 
@@ -58,7 +59,7 @@
             pointer-events: none;
         }
 
-        .hero-side { padding: 22px; display: grid; gap: 12px; }
+        .hero-side { padding: 22px; display: grid; gap: 12px; align-content: start; }
         .metric, .stat, .entry, .legend-item, .split-row, .weekday, .day, .chart-box {
             border: 1px solid rgba(19, 34, 56, 0.08);
             background: rgba(255, 255, 255, 0.94);
@@ -77,9 +78,14 @@
         .stat { border-radius: 18px; padding: 16px; }
         .stat small, .metric .label { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
         .stat strong, .metric .value { display: block; margin-top: 8px; font-size: 1.35rem; font-weight: 700; }
+        .metric input[type="month"] {
+            width: 100%; border: 1px solid rgba(19, 34, 56, 0.14); border-radius: 12px;
+            padding: 10px 12px; background: rgba(255, 255, 255, 0.94); color: var(--text); font: inherit; font-weight: 700;
+        }
 
         .panel { padding: 20px; }
         .panel h2 { font-size: 1.15rem; margin-bottom: 14px; }
+        .panel h3 { font-size: 0.98rem; margin-bottom: 10px; color: var(--accent); }
         .hint { color: var(--muted); font-size: 0.92rem; line-height: 1.7; margin-bottom: 16px; }
 
         .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -98,16 +104,70 @@
             color: #fff; font: inherit; font-weight: 700; cursor: pointer;
         }
         button.secondary { background: rgba(15, 76, 92, 0.12); color: var(--accent); }
+        button.btn-sm { padding: 8px 14px; font-size: 0.82rem; }
+        button.danger { background: rgba(220, 38, 38, 0.12); color: var(--expense); }
+
+        /* 各タブごとの年月ナビ（＜ 月 ＞） */
+        .month-nav { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+        .month-nav-btn {
+            width: 40px; height: 40px; padding: 0; border-radius: 12px; font-size: 1.1rem;
+            background: rgba(15, 76, 92, 0.1); color: var(--accent);
+        }
+        .month-picker-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+        .month-picker-bar .month-nav { width: 240px; }
+
+        /* カテゴリー管理（カテゴリー欄の下にインライン表示） */
+        .category-inline-manager {
+            margin-top: 10px; padding: 12px; border: 1px dashed rgba(15, 76, 92, 0.3);
+            background: rgba(15, 76, 92, 0.04); border-radius: 14px;
+        }
+        .category-manager { display: grid; gap: 8px; }
+        .category-manage-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+        .category-manage-row input[type="text"] {
+            border: 1px solid rgba(19, 34, 56, 0.14); border-radius: 10px; padding: 8px 10px;
+            font: inherit; background: rgba(255, 255, 255, 0.94); color: var(--text);
+        }
+
+        /* タブ切り替え（収支記録 / 分析 / 割り勘 / 貯蓄管理） */
+        .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn {
+            background: rgba(255, 255, 255, 0.7); color: var(--muted); border: 1px solid rgba(19, 34, 56, 0.1);
+            padding: 12px 22px; border-radius: 999px; font-weight: 700; cursor: pointer;
+        }
+        .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* 支出・収入 ワンタッチ切り替え */
+        .kind-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .kind-btn {
+            background: rgba(19, 34, 56, 0.06); color: var(--muted); border: 1px solid transparent; border-radius: 14px;
+            padding: 12px; font-weight: 700;
+        }
+        .kind-btn[data-kind="EXPENSE"].active { background: rgba(220, 38, 38, 0.12); color: var(--expense); border-color: rgba(220, 38, 38, 0.3); }
+        .kind-btn[data-kind="INCOME"].active { background: rgba(29, 78, 216, 0.12); color: var(--income); border-color: rgba(29, 78, 216, 0.3); }
 
         .list, .legend, .split-list, .participants { display: grid; gap: 10px; }
         .entry, .legend-item, .split-row { padding: 14px; border-radius: 18px; }
         .entry-top { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+        .entry-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .category-label { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+        .memo-label { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
         .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(15, 76, 92, 0.1); color: var(--accent); font-size: 12px; font-weight: 700; }
         .amount.income { color: var(--income); font-weight: 800; }
         .amount.expense { color: var(--expense); font-weight: 800; }
         .muted { color: var(--muted); font-size: 0.92rem; }
 
-        .chart-box { border-radius: 20px; padding: 14px; }
+        .chart-box { border-radius: 20px; padding: 14px; position: relative; }
+        .chart-tooltip {
+            position: absolute; transform: translate(-50%, calc(-100% - 10px));
+            background: rgba(19, 34, 56, 0.92); color: #fff; padding: 6px 12px; border-radius: 10px;
+            font-size: 12px; font-weight: 700; white-space: nowrap; pointer-events: none; z-index: 5;
+        }
+        .chart-tooltip::after {
+            content: ""; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
+            border: 6px solid transparent; border-top-color: rgba(19, 34, 56, 0.92);
+        }
         canvas { width: 100%; height: 240px; display: block; }
         .pie { width: 220px; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(#cbd5e1 0deg 360deg); position: relative; }
         .pie::after { content: ""; position: absolute; inset: 28px; border-radius: 50%; background: #fff; }
@@ -121,13 +181,32 @@
         .day.saturday { background: rgba(14, 165, 233, 0.1); }
         .day.sunday, .day.holiday { background: rgba(220, 38, 38, 0.1); }
         .day.empty { background: transparent; border: 1px dashed rgba(19, 34, 56, 0.12); }
+        .day:not(.empty) { cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease; }
+        .day:not(.empty):hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(19, 34, 56, 0.12); }
+        .day.selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+        .day-detail { border-top: 1px dashed rgba(19, 34, 56, 0.14); padding-top: 16px; }
 
-        .participant-row { display: grid; grid-template-columns: 1fr 120px; gap: 10px; }
+        /* 参加者・支払い明細（割り勘） */
+        .participant-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+        .payment-editor { padding: 16px; border: 1px dashed rgba(15, 76, 92, 0.3); background: rgba(15, 76, 92, 0.04); border-radius: 16px; }
+        .payments-list .split-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .covered-checkboxes { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+        .covered-item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--text); }
+        .remove-btn {
+            width: 32px; height: 32px; padding: 0; border-radius: 50%;
+            background: rgba(220, 38, 38, 0.1); color: var(--expense); font-weight: 800; line-height: 1;
+            display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
+        }
+
+        /* 貯蓄管理タブ */
+        .progress-bar { width: 100%; height: 14px; border-radius: 999px; background: rgba(19, 34, 56, 0.08); overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #0f4c5c, #1d4ed8); border-radius: 999px; transition: width 0.3s ease; }
 
         @media (max-width: 1024px) {
-            .hero, .grid, .pie-row { grid-template-columns: 1fr; }
+            .hero, .grid, .pie-row, .pie-compare { grid-template-columns: 1fr; }
             .hero-grid, .form-grid { grid-template-columns: 1fr; }
             .span-2 { grid-column: auto; }
+            .month-picker-bar .month-nav { width: 100%; }
         }
 
         @media (max-width: 640px) {
@@ -143,8 +222,9 @@
         <section class="hero">
             <div class="hero-card">
                 <div class="eyebrow">three-layer finance dashboard</div>
-                <h1>家計簿、割り勘、分析、カレンダーを一画面で回す雛形</h1>
-                <p>支出・収入は JSON API 経由で保存し、満足度と投資・消費・浪費の区分も一緒に持たせます。月次グラフと日別カレンダーは記録されたデータから自動生成します。</p>
+                <h1>MoneyPilot</h1>
+                <p>家計管理・収支分析・割り勘計算・貯蓄管理をひとつのアプリで。</p>
+                <p>日々の支出・収入を記録し、月ごとの分析やカレンダー表示でお金の流れを可視化します。</p>
 
                 <div class="hero-grid">
                     <div class="stat"><small>今月の収入</small><strong id="heroIncome"><%= initialData.monthSummary.totals.income.toLocaleString("ja-JP") %>円</strong></div>
@@ -155,143 +235,315 @@
 
             <aside class="hero-side panel">
                 <div class="metric">
-                    <div class="label">分析対象月</div>
-                    <strong class="value" id="summaryMonth"><%= initialData.monthKey %></strong>
-                    <div class="muted">月次分析とカレンダーはこの月を基準に切り替えます。</div>
-                </div>
-                <div class="metric">
-                    <div class="label">記録件数</div>
-                    <strong class="value" id="transactionCount"><%= initialData.transactions.length %>件</strong>
-                    <div class="muted">入力済みの家計データと割り勘記録を一覧表示します。</div>
+                    <div class="label">今月（<%= initialData.monthKey %>）の記録件数</div>
+                    <strong class="value"><%= initialData.transactions.length %>件</strong>
+                    <div class="muted" style="margin-top: 6px;">このカードは常にサイトを開いた時点の月（今月）を表示します。過去の月を見たいときは各タブの年月選択を使ってください。</div>
                 </div>
             </aside>
         </section>
 
-        <div class="grid">
-            <div class="stack">
-                <section class="panel">
-                    <h2>支出・収入の記録</h2>
-                    <p class="hint">金額、日付、カテゴリー、支払い方法、満足度、投資・消費・浪費をまとめて送信します。レシート画像 URL と OCR テキストの雛形も置いてあります。</p>
+        <div class="tabs" role="tablist">
+            <button type="button" class="tab-btn active" data-tab="tab-record">収支記録</button>
+            <button type="button" class="tab-btn" data-tab="tab-analysis">分析</button>
+            <button type="button" class="tab-btn" data-tab="tab-split">割り勘</button>
+            <button type="button" class="tab-btn" data-tab="tab-savings">貯蓄管理</button>
+        </div>
 
-                    <form id="transactionForm">
-                        <div class="form-grid">
-                            <div class="field">
-                                <label for="kind">区分</label>
-                                <select id="kind" name="kind">
-                                    <% enums.transactionKinds.forEach((kind) => { %><option value="<%= kind %>"><%= kind %></option><% }) %>
-                                </select>
+        <div id="tab-record" class="tab-panel active">
+            <div class="grid">
+                <div class="stack">
+                    <section class="panel">
+                        <h2>支出・収入の記録</h2>
+                        <p class="hint">上のボタンで支出・収入をワンタッチで切り替えられます。金額、日付、カテゴリー、支払い方法、満足度、投資・消費・浪費をまとめて送信します。</p>
+
+                        <form id="transactionForm">
+                            <div class="field span-2" style="margin-bottom: 14px;">
+                                <label>区分</label>
+                                <div class="kind-toggle">
+                                    <button type="button" class="kind-btn active" data-kind="EXPENSE">支出</button>
+                                    <button type="button" class="kind-btn" data-kind="INCOME">収入</button>
+                                </div>
+                                <input type="hidden" id="kind" name="kind" value="EXPENSE">
                             </div>
-                            <div class="field">
-                                <label for="amount">金額</label>
-                                <input id="amount" name="amount" type="number" min="0" placeholder="1200" required>
+
+                            <div class="form-grid">
+                                <div class="field">
+                                    <label for="amount">金額</label>
+                                    <input id="amount" name="amount" type="number" min="0" placeholder="1200" required>
+                                </div>
+                                <div class="field">
+                                    <label for="occurredAt">日付</label>
+                                    <input id="occurredAt" name="occurredAt" type="date" value="<%= initialData.monthKey %>-01" required>
+                                </div>
+                                <div class="field">
+                                    <label for="category">カテゴリー</label>
+                                    <select id="category" name="category" required></select>
+
+                                    <div class="category-inline-manager" id="categoryInlineManager" style="display: none;">
+                                        <p class="muted" style="margin-bottom: 8px;">名前を書き換えると変更されます。×を押すと削除できます（確認あり）。一番下から新しいカテゴリーを追加できます。</p>
+                                        <div class="category-manager" id="categoryManagerList"></div>
+                                        <div class="category-manage-row" style="margin-top: 8px;">
+                                            <input type="text" id="newCategoryInput" placeholder="新しいカテゴリー名">
+                                            <button type="button" class="secondary btn-sm" id="addCategoryBtn">追加</button>
+                                        </div>
+                                        <div class="actions" style="margin-top: 10px;">
+                                            <button type="button" class="secondary btn-sm" id="closeCategoryManager">完了して選択に戻る</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="field">
+                                    <label for="paymentMethod">支払い方法</label>
+                                    <select id="paymentMethod" name="paymentMethod">
+                                        <% enums.paymentMethods.forEach((method) => { %><option value="<%= method %>"><%= method %></option><% }) %>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label for="satisfaction">満足度</label>
+                                    <select id="satisfaction" name="satisfaction">
+                                        <% enums.satisfactionLevels.forEach((level) => { %><option value="<%= level %>"><%= level %></option><% }) %>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label for="spendingStyle">投資・消費・浪費</label>
+                                    <select id="spendingStyle" name="spendingStyle">
+                                        <% enums.spendingStyles.forEach((style) => { %><option value="<%= style %>"><%= style %></option><% }) %>
+                                    </select>
+                                </div>
+                                <div class="field span-2">
+                                    <label for="memo">メモ</label>
+                                    <textarea id="memo" name="memo" placeholder="用途、購入理由、分類メモ"></textarea>
+                                </div>
                             </div>
-                            <div class="field">
-                                <label for="occurredAt">日付</label>
-                                <input id="occurredAt" name="occurredAt" type="date" value="<%= initialData.monthKey %>-01" required>
+
+                            <div class="actions">
+                                <button type="submit" id="transactionSubmitBtn">保存する</button>
+                                <button type="button" class="secondary" id="cancelEditTransaction" style="display: none;">編集をキャンセル</button>
                             </div>
-                            <div class="field">
-                                <label for="category">カテゴリー</label>
-                                <input id="category" name="category" type="text" placeholder="食費 / サブスク / 交通費" required>
+                        </form>
+                    </section>
+                </div>
+
+                <div class="stack">
+                    <section class="panel">
+                        <h2>記録一覧</h2>
+                        <p class="hint">このタブだけの年月選択です。他のタブの年月とは連動しません。各記録の「編集」を押すとフォームに内容が読み込まれ、更新できます。</p>
+
+                        <div class="month-picker-bar">
+                            <div class="month-nav">
+                                <button type="button" class="month-nav-btn secondary" id="recordPrevMonth" title="前の月へ">＜</button>
+                                <input type="month" id="recordMonth" value="<%= initialData.monthKey %>">
+                                <button type="button" class="month-nav-btn secondary" id="recordNextMonth" title="次の月へ">＞</button>
                             </div>
-                            <div class="field">
-                                <label for="paymentMethod">支払い方法</label>
-                                <select id="paymentMethod" name="paymentMethod">
-                                    <% enums.paymentMethods.forEach((method) => { %><option value="<%= method %>"><%= method %></option><% }) %>
-                                </select>
-                            </div>
-                            <div class="field">
-                                <label for="satisfaction">満足度</label>
-                                <select id="satisfaction" name="satisfaction">
-                                    <% enums.satisfactionLevels.forEach((level) => { %><option value="<%= level %>"><%= level %></option><% }) %>
-                                </select>
-                            </div>
-                            <div class="field">
-                                <label for="spendingStyle">投資・消費・浪費</label>
-                                <select id="spendingStyle" name="spendingStyle">
-                                    <% enums.spendingStyles.forEach((style) => { %><option value="<%= style %>"><%= style %></option><% }) %>
-                                </select>
-                            </div>
-                            <div class="field">
-                                <label for="receiptImageUrl">レシート画像 URL</label>
-                                <input id="receiptImageUrl" name="receiptImageUrl" type="url" placeholder="https://example.com/receipt.jpg">
-                            </div>
-                            <div class="field span-2">
-                                <label for="receiptText">OCR 取得テキスト</label>
-                                <textarea id="receiptText" name="receiptText" placeholder="レシートから読んだ内容を保存"></textarea>
-                            </div>
-                            <div class="field span-2">
-                                <label for="memo">メモ</label>
-                                <textarea id="memo" name="memo" placeholder="用途、購入理由、分類メモ"></textarea>
-                            </div>
+                            <div class="muted" id="recordCount"></div>
                         </div>
 
-                        <div class="actions">
-                            <button type="submit">保存する</button>
-                            <button type="button" class="secondary" id="reloadDashboard">最新データを再取得</button>
-                        </div>
-                    </form>
-                </section>
+                        <div id="transactionList" class="list"></div>
+                    </section>
+                </div>
+            </div>
+        </div>
 
-                <section class="panel">
-                    <h2>記録一覧</h2>
-                    <div id="transactionList" class="list"></div>
-                </section>
+        <div id="tab-analysis" class="tab-panel">
+            <div class="month-picker-bar">
+                <div class="month-nav">
+                    <button type="button" class="month-nav-btn secondary" id="analysisPrevMonth" title="前の月へ">＜</button>
+                    <input type="month" id="analysisMonth" value="<%= initialData.monthKey %>">
+                    <button type="button" class="month-nav-btn secondary" id="analysisNextMonth" title="次の月へ">＞</button>
+                </div>
+                <div class="muted">この年月分析タブの年月は、収支記録・割り勘のタブとは独立しています。</div>
             </div>
 
-            <div class="stack">
-                <section class="panel">
-                    <h2>月次収支グラフ</h2>
-                    <p class="hint">年間の収入・支出を自動で描画します。月ごとの棒を見れば、収支の山と谷が一目で追えます。</p>
-                    <div class="chart-box"><canvas id="monthlyChart"></canvas></div>
-                    <div class="muted" id="monthlyChartLabel"></div>
-                </section>
+            <div class="grid">
+                <div class="stack">
+                    <section class="panel">
+                        <h2>選択中の月の収支</h2>
+                        <div class="hero-grid">
+                            <div class="stat"><small>収入</small><strong id="analysisIncome">-</strong></div>
+                            <div class="stat"><small>支出</small><strong id="analysisExpense">-</strong></div>
+                            <div class="stat"><small>収支</small><strong id="analysisBalance">-</strong></div>
+                        </div>
+                    </section>
 
-                <section class="panel">
-                    <h2>月次分析</h2>
-                    <div class="form-grid">
-                        <div class="field"><label for="analysisMonth">対象月</label><input id="analysisMonth" type="month" value="<%= initialData.monthKey %>"></div>
-                        <div class="field"><label for="analysisYear">グラフ年</label><input id="analysisYear" type="number" value="<%= initialData.year %>"></div>
-                    </div>
-                    <div class="actions"><button type="button" id="refreshAnalysis">分析を更新</button></div>
+                    <section class="panel">
+                        <h2>月次収支グラフ</h2>
+                        <p class="hint">選択中の年月が含まれる年の、収入・支出を月ごとに自動で描画します。青が収入、赤が支出です。棒にカーソルを合わせる（またはタップする）と金額が吹き出しで表示されます。</p>
+                        <div class="chart-box">
+                            <canvas id="monthlyChart"></canvas>
+                            <div class="chart-tooltip" id="chartTooltip" style="display: none;"></div>
+                        </div>
+                        <div class="muted" id="monthlyChartLabel"></div>
+                    </section>
 
-                    <div class="hero-grid" style="margin-top: 18px;">
-                        <div class="stat"><small>平均日次支出</small><strong id="averageDailyExpense"><%= initialData.monthSummary.totals.averageDailyExpense.toLocaleString("ja-JP") %>円</strong></div>
-                        <div class="stat"><small>満足度</small><strong id="satisfactionSummary"><%= initialData.monthSummary.satisfactionBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") || "未記録" %></strong></div>
-                        <div class="stat"><small>浪費比率</small><strong id="spendingStyleSummary"><%= initialData.monthSummary.spendingStyleBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") || "未記録" %></strong></div>
-                    </div>
+                    <section class="panel">
+                        <h2>カレンダー</h2>
+                        <p class="hint">選択中の月を表示しています。日ごとの支出は赤、収入は青で色分けし、土曜日は水色、日曜と祝日は紅色で強調します。日付をクリックすると、その日の記録一覧が下に表示されます。</p>
+                        <div class="calendar" id="calendar"></div>
 
-                    <div class="pie-row" style="margin-top: 18px;">
-                        <div class="pie" id="categoryPie"></div>
-                        <div class="legend" id="categoryLegend"></div>
-                    </div>
-                </section>
+                        <div class="day-detail" id="dayDetail" style="margin-top: 16px; display: none;">
+                            <h3 id="dayDetailTitle" style="margin-bottom: 10px;"></h3>
+                            <div class="list" id="dayDetailList"></div>
+                        </div>
+                    </section>
+                </div>
 
-                <section class="panel">
-                    <h2>割り勘機能</h2>
-                    <p class="hint">合計額と立て替え額を入力すると、誰が誰にいくら払うかを計算します。結果は記録一覧に保存します。</p>
+                <div class="stack">
+                    <section class="panel">
+                        <h2>月次分析</h2>
 
-                    <form id="splitForm">
-                        <div class="form-grid">
-                            <div class="field span-2"><label for="splitTitle">名称</label><input id="splitTitle" name="splitTitle" type="text" placeholder="旅行の割り勘" value="グループ精算"></div>
-                            <div class="field"><label for="totalAmount">合計額</label><input id="totalAmount" name="totalAmount" type="number" min="0" placeholder="12000" required></div>
+                        <div class="hero-grid">
+                            <div class="stat"><small>平均日次支出</small><strong id="averageDailyExpense">-</strong></div>
+                            <div class="stat"><small>満足度</small><strong id="satisfactionSummary">-</strong></div>
+                            <div class="stat"><small>浪費比率</small><strong id="spendingStyleSummary">-</strong></div>
                         </div>
 
-                        <div class="participants" id="participants"></div>
+                        <div class="pie-compare" style="margin-top: 18px;">
+                            <div>
+                                <h3>支出の内訳</h3>
+                                <div class="pie-row">
+                                    <div class="pie" id="expenseCategoryPie"></div>
+                                    <div class="legend" id="expenseCategoryLegend"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <h3>収入の内訳</h3>
+                                <div class="pie-row">
+                                    <div class="pie" id="incomeCategoryPie"></div>
+                                    <div class="legend" id="incomeCategoryLegend"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
 
+        <div id="tab-split" class="tab-panel">
+            <div class="grid">
+                <div class="stack">
+                    <section class="panel">
+                        <h2>割り勘機能</h2>
+                        <p class="hint">参加者を登録し、「誰が」「いくら」「誰の分を」払ったかを支払い明細として入力すると、最終的に誰が誰にいくら払えばよいかを自動計算します。1人が他の人数分だけまとめて支払った場合は、対象者のチェックを絞ってください（未チェックのままなら参加者全員が対象になります）。</p>
+
+                        <form id="splitForm">
+                            <div class="field span-2">
+                                <label for="splitTitle">名称</label>
+                                <input id="splitTitle" name="splitTitle" type="text" placeholder="旅行の割り勘" value="グループ精算">
+                            </div>
+
+                            <h3 style="margin-top: 20px;">参加者</h3>
+                            <div class="participants" id="participants"></div>
+                            <div class="actions">
+                                <button type="button" class="secondary" id="addParticipant">参加者を追加</button>
+                            </div>
+
+                            <h3 style="margin-top: 24px;">支払い明細（追加済み）</h3>
+                            <p class="hint" style="margin-bottom: 10px;">下のフォームで内容を入力し「追加する」を押すと、ここに一覧として積み上がっていきます。内容を直したいときは各行の「編集」を押してください。</p>
+                            <div class="payments-list split-list" id="paymentsList"></div>
+
+                            <div class="payment-editor" style="margin-top: 16px;" id="paymentEditor">
+                                <h3>支払いを入力</h3>
+                                <div class="form-grid">
+                                    <div class="field">
+                                        <label for="paymentPayerInput">支払った人</label>
+                                        <select id="paymentPayerInput"></select>
+                                    </div>
+                                    <div class="field">
+                                        <label for="paymentAmountInput">金額</label>
+                                        <input type="number" id="paymentAmountInput" min="0" placeholder="3000">
+                                    </div>
+                                    <div class="field span-2">
+                                        <label>対象者（誰の分の支払いか。未チェックなら参加者全員が対象）</label>
+                                        <div class="covered-checkboxes" id="paymentCoveredInput"></div>
+                                    </div>
+                                </div>
+                                <div class="actions">
+                                    <button type="button" id="commitPayment">この内容を追加する</button>
+                                    <button type="button" class="secondary" id="cancelPaymentEdit" style="display: none;">編集をキャンセル</button>
+                                </div>
+                            </div>
+
+                            <div class="actions" style="margin-top: 18px;">
+                                <button type="submit" id="splitSubmitBtn">計算して保存</button>
+                                <button type="button" class="secondary" id="cancelEditSplit" style="display: none;">編集をキャンセル</button>
+                            </div>
+                        </form>
+                    </section>
+                </div>
+
+                <div class="stack">
+                    <section class="panel">
+                        <h2>割り勘の記録</h2>
+                        <p class="hint">このタブだけの年月選択です（記録が作られた月で絞り込みます）。「編集」を押すと左のフォームに内容が読み込まれ、支払いを追加・修正して再計算できます。</p>
+
+                        <div class="month-picker-bar">
+                            <div class="month-nav">
+                                <button type="button" class="month-nav-btn secondary" id="splitPrevMonth" title="前の月へ">＜</button>
+                                <input type="month" id="splitMonth" value="<%= initialData.monthKey %>">
+                                <button type="button" class="month-nav-btn secondary" id="splitNextMonth" title="次の月へ">＞</button>
+                            </div>
+                        </div>
+
+                        <div class="split-list" id="splitResult"></div>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-savings" class="tab-panel">
+            <div class="grid">
+                <div class="stack">
+                    <section class="panel">
+                        <h2>貯蓄額と目標</h2>
+                        <p class="hint">これまでに記録したすべての収入・支出から、貯蓄額（収入合計 − 支出合計）を自動計算します。目標額を設定すると達成率も確認できます。</p>
+
+                        <div class="hero-grid">
+                            <div class="stat"><small>現在の貯蓄額</small><strong id="currentSavings">-</strong></div>
+                            <div class="stat"><small>目標額</small><strong id="savingsGoalDisplay">-</strong></div>
+                            <div class="stat"><small>達成率</small><strong id="goalProgress">-</strong></div>
+                        </div>
+
+                        <div class="progress-bar" style="margin-top: 16px;">
+                            <div class="progress-bar-fill" id="goalProgressFill" style="width: 0%;"></div>
+                        </div>
+
+                        <div class="form-grid" style="margin-top: 20px;">
+                            <div class="field span-2">
+                                <label for="savingsGoalInput">目標額を設定</label>
+                                <input type="number" id="savingsGoalInput" min="0" placeholder="1000000">
+                            </div>
+                        </div>
                         <div class="actions">
-                            <button type="button" class="secondary" id="addParticipant">参加者を追加</button>
-                            <button type="submit">計算して保存</button>
+                            <button type="button" id="saveSavingsGoal">目標額を保存</button>
                         </div>
-                    </form>
+                    </section>
 
-                    <div class="split-list" id="splitResult"></div>
-                </section>
+                    <section class="panel">
+                        <h2>選択月の貯蓄率</h2>
+                        <p class="hint">貯蓄率 = （収入 − 支出）÷ 収入 × 100。収入のうちどれだけを貯蓄に回せたかの割合です。このタブだけの年月選択です。</p>
 
-                <section class="panel">
-                    <h2>カレンダー</h2>
-                    <p class="hint">日ごとの支出は赤、収入は青で色分けし、土曜日は水色、日曜と祝日は紅色で強調します。</p>
-                    <div class="calendar" id="calendar"></div>
-                </section>
+                        <div class="month-picker-bar">
+                            <div class="month-nav">
+                                <button type="button" class="month-nav-btn secondary" id="savingsPrevMonth" title="前の月へ">＜</button>
+                                <input type="month" id="savingsMonth" value="<%= initialData.monthKey %>">
+                                <button type="button" class="month-nav-btn secondary" id="savingsNextMonth" title="次の月へ">＞</button>
+                            </div>
+                        </div>
+
+                        <div class="hero-grid">
+                            <div class="stat"><small>選択月の収入</small><strong id="savingsMonthIncome">-</strong></div>
+                            <div class="stat"><small>選択月の支出</small><strong id="savingsMonthExpense">-</strong></div>
+                            <div class="stat"><small>貯蓄率</small><strong id="savingsMonthRate">-</strong></div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="stack">
+                    <section class="panel">
+                        <h2>カテゴリ別 節約率</h2>
+                        <p class="hint">選択中の月と前月の支出をカテゴリごとに比較します。プラスは前月より支出が減った（節約できた）、マイナスは支出が増えたことを示します。</p>
+                        <div class="list" id="categorySavingsList"></div>
+                    </section>
+                </div>
             </div>
         </div>
     </div>
@@ -303,21 +555,37 @@
         const currencyFormatter = new Intl.NumberFormat("ja-JP");
         const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
         let latestMonthlyGraph = initialData.yearlyGraph;
+        let latestTransactions = [];
+        let latestSplitSessions = [];
+        let latestAnalysisTransactions = initialData.monthSummary.transactions || [];
+        let selectedDayKey = null;
+        let splitPayments = [];
 
         const elements = {
             transactionList: document.getElementById("transactionList"),
             monthlyChart: document.getElementById("monthlyChart"),
             monthlyChartLabel: document.getElementById("monthlyChartLabel"),
-            categoryPie: document.getElementById("categoryPie"),
-            categoryLegend: document.getElementById("categoryLegend"),
+            chartTooltip: document.getElementById("chartTooltip"),
+            expenseCategoryPie: document.getElementById("expenseCategoryPie"),
+            expenseCategoryLegend: document.getElementById("expenseCategoryLegend"),
+            incomeCategoryPie: document.getElementById("incomeCategoryPie"),
+            incomeCategoryLegend: document.getElementById("incomeCategoryLegend"),
             calendar: document.getElementById("calendar"),
             splitResult: document.getElementById("splitResult"),
             participants: document.getElementById("participants"),
+            paymentsList: document.getElementById("paymentsList"),
+            categoryManagerList: document.getElementById("categoryManagerList"),
+            categoryInlineManager: document.getElementById("categoryInlineManager"),
+            categorySelect: document.getElementById("category"),
             transactionForm: document.getElementById("transactionForm"),
             splitForm: document.getElementById("splitForm"),
+            recordMonth: document.getElementById("recordMonth"),
             analysisMonth: document.getElementById("analysisMonth"),
-            analysisYear: document.getElementById("analysisYear"),
+            splitMonth: document.getElementById("splitMonth"),
+            savingsMonth: document.getElementById("savingsMonth"),
         };
+
+        let categories = initialData.categories || [];
 
         function api(path, options = {}) {
             return fetch(path, {
@@ -331,6 +599,156 @@
         }
 
         function formatAmount(value) { return `${currencyFormatter.format(value)}円`; }
+
+        function escapeHtml(value) {
+            return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+            }[char]));
+        }
+
+        // --- タブ切り替え（収支記録 / 分析 / 割り勘 / 貯蓄管理） ---
+        document.querySelectorAll(".tab-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+                document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
+                btn.classList.add("active");
+                document.getElementById(btn.dataset.tab).classList.add("active");
+
+                // canvasは非表示(display:none)の間は幅0で描画されてしまうため、
+                // 分析タブが表示された直後に描き直す
+                if (btn.dataset.tab === "tab-analysis") {
+                    renderMonthlyChart(latestMonthlyGraph);
+                }
+            });
+        });
+
+        // --- 支出・収入 ワンタッチ切り替え ---
+        document.querySelectorAll(".kind-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".kind-btn").forEach((b) => b.classList.remove("active"));
+                btn.classList.add("active");
+                document.getElementById("kind").value = btn.dataset.kind;
+            });
+        });
+
+        // --- カテゴリー管理（DBに保存されるので、リロードしても内容が保持される） ---
+        // プルダウンの一番下にある「（追加・編集）」を選ぶと、インラインの管理パネルが開く。
+        const MANAGE_CATEGORY_VALUE = "__manage_categories__";
+        let lastCategoryValue = "";
+
+        function renderCategoryManagerList() {
+            elements.categoryManagerList.innerHTML = categories.length
+                ? categories.map((category) => `
+                    <div class="category-manage-row">
+                        <input type="text" class="category-manage-input" value="${escapeHtml(category.name)}" data-id="${category.id}">
+                        <button type="button" class="remove-btn category-manage-delete" data-id="${category.id}" title="このカテゴリーを削除">×</button>
+                    </div>
+                `).join("")
+                : '<span class="muted">カテゴリーがまだありません。下の欄から追加してください。</span>';
+        }
+
+        function populateCategorySelect(preferredValue) {
+            const select = elements.categorySelect;
+            const previous = preferredValue !== undefined ? preferredValue : select.value;
+            const names = categories.map((category) => category.name);
+            const options = previous && !names.includes(previous) && previous !== MANAGE_CATEGORY_VALUE ? [...names, previous] : names;
+            select.innerHTML = options.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")
+                + `<option value="${MANAGE_CATEGORY_VALUE}">（追加・編集）</option>`;
+            if (previous && options.includes(previous)) {
+                select.value = previous;
+                lastCategoryValue = previous;
+            } else if (names.length) {
+                lastCategoryValue = select.value;
+            }
+        }
+
+        async function loadCategories(preferredValue) {
+            const data = await api("/api/categories");
+            categories = data.items;
+            renderCategoryManagerList();
+            populateCategorySelect(preferredValue);
+        }
+
+        function openCategoryManager() {
+            elements.categoryInlineManager.style.display = "block";
+            elements.categorySelect.style.display = "none";
+            renderCategoryManagerList();
+        }
+
+        function closeCategoryManager() {
+            elements.categoryInlineManager.style.display = "none";
+            elements.categorySelect.style.display = "";
+            populateCategorySelect(lastCategoryValue);
+        }
+
+        elements.categorySelect.addEventListener("change", () => {
+            if (elements.categorySelect.value === MANAGE_CATEGORY_VALUE) {
+                openCategoryManager();
+            } else {
+                lastCategoryValue = elements.categorySelect.value;
+            }
+        });
+
+        elements.categoryManagerList.addEventListener("change", async (event) => {
+            if (!event.target.classList.contains("category-manage-input")) return;
+            const id = event.target.dataset.id;
+            const name = event.target.value.trim();
+            if (!name) {
+                alert("カテゴリー名を入力してください。");
+                await loadCategories();
+                renderCategoryManagerList();
+                return;
+            }
+            await api(`/api/categories/${id}`, { method: "PUT", body: JSON.stringify({ name }) });
+            await loadCategories();
+            renderCategoryManagerList();
+        });
+
+        elements.categoryManagerList.addEventListener("click", async (event) => {
+            const deleteBtn = event.target.closest(".category-manage-delete");
+            if (!deleteBtn) return;
+            if (confirm("本当にこのカテゴリーを削除しますか？（過去の記録のカテゴリー名はそのまま残ります）")) {
+                await api(`/api/categories/${deleteBtn.dataset.id}`, { method: "DELETE" });
+                await loadCategories();
+                renderCategoryManagerList();
+            }
+        });
+
+        document.getElementById("addCategoryBtn").addEventListener("click", async () => {
+            const input = document.getElementById("newCategoryInput");
+            const name = input.value.trim();
+            if (!name) return;
+            await api("/api/categories", { method: "POST", body: JSON.stringify({ name }) });
+            input.value = "";
+            lastCategoryValue = name;
+            await loadCategories(name);
+            renderCategoryManagerList();
+        });
+
+        document.getElementById("closeCategoryManager").addEventListener("click", closeCategoryManager);
+
+        // --- ＜ 月 ＞ ワンタッチ月切り替え（タブごとに独立）---
+        function shiftMonthKey(monthKey, delta) {
+            const [yearText = "1970", monthText = "01"] = monthKey.split("-");
+            const date = new Date(Date.UTC(Number(yearText), Number(monthText) - 1 + delta, 1));
+            return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+        }
+
+        function wireMonthNav(inputEl, prevBtnId, nextBtnId, onChange) {
+            document.getElementById(prevBtnId).addEventListener("click", () => {
+                inputEl.value = shiftMonthKey(inputEl.value || initialData.monthKey, -1);
+                onChange();
+            });
+            document.getElementById(nextBtnId).addEventListener("click", () => {
+                inputEl.value = shiftMonthKey(inputEl.value || initialData.monthKey, 1);
+                onChange();
+            });
+            inputEl.addEventListener("change", onChange);
+        }
 
         function nthWeekdayOfMonth(year, monthIndex, weekday, occurrence) {
             const firstDay = new Date(year, monthIndex, 1).getDay();
@@ -394,26 +812,32 @@
         }
 
         function renderTransactions(items) {
+            latestTransactions = items;
             elements.transactionList.innerHTML = items.length
                 ? items.map((item) => `
                     <article class="entry">
                         <div class="entry-top">
                             <div>
-                                <div class="badge">${item.kind} / ${item.category}</div>
-                                <h3 style="margin-top: 10px; font-size: 1rem;">${item.memo || item.receiptText || "メモなし"}</h3>
+                                <div class="category-label">${escapeHtml(item.category)}</div>
+                                ${item.memo ? `<div class="memo-label">${escapeHtml(item.memo)}</div>` : ""}
                             </div>
                             <div class="amount ${item.kind === "INCOME" ? "income" : "expense"}">${item.kind === "INCOME" ? "+" : "-"}${item.amountLabel}</div>
                         </div>
-                        <p class="muted" style="margin-top: 10px;">${item.occurredAt} / ${item.paymentMethod} / 満足度:${item.satisfaction} / 区分:${item.spendingStyle}</p>
+                        <p class="muted" style="margin-top: 10px;">${item.occurredAt} / ${escapeHtml(item.paymentMethod)} / 満足度:${escapeHtml(item.satisfaction)} / 区分:${escapeHtml(item.spendingStyle)}</p>
+                        <div class="entry-actions">
+                            <button type="button" class="secondary btn-sm edit-transaction" data-id="${item.id}">編集</button>
+                            <button type="button" class="danger btn-sm delete-transaction" data-id="${item.id}">削除</button>
+                        </div>
                     </article>
                 `).join("")
-                : '<div class="entry"><p class="muted">まだ記録がありません。</p></div>';
+                : '<div class="entry"><p class="muted">この月の記録はまだありません。</p></div>';
+            document.getElementById("recordCount").textContent = `${items.length}件`;
         }
 
-        function renderCategoryPie(items) {
+        function renderCategoryPie(items, pieEl, legendEl, emptyLabel) {
             if (!items.length) {
-                elements.categoryPie.style.background = "conic-gradient(#cbd5e1 0deg 360deg)";
-                elements.categoryLegend.innerHTML = '<div class="legend-item"><span>未分類</span><strong>0円</strong></div>';
+                pieEl.style.background = "conic-gradient(#cbd5e1 0deg 360deg)";
+                legendEl.innerHTML = `<div class="legend-item"><span>${emptyLabel}</span><strong>0円</strong></div>`;
                 return;
             }
             const palette = ["#0f4c5c", "#1d4ed8", "#d97706", "#dc2626", "#16a34a", "#7c3aed"];
@@ -424,10 +848,10 @@
                 segments.push(`${palette[index % palette.length]} ${currentAngle}deg ${currentAngle + angle}deg`);
                 currentAngle += angle;
             });
-            elements.categoryPie.style.background = `conic-gradient(${segments.join(", ")})`;
-            elements.categoryLegend.innerHTML = items.map((item, index) => `
+            pieEl.style.background = `conic-gradient(${segments.join(", ")})`;
+            legendEl.innerHTML = items.map((item, index) => `
                 <div class="legend-item">
-                    <span><span style="display:inline-block;width:10px;height:10px;border-radius:999px;background:${palette[index % palette.length]};margin-right:8px;"></span>${item.category}</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;border-radius:999px;background:${palette[index % palette.length]};margin-right:8px;"></span>${escapeHtml(item.category)}</span>
                     <strong>${formatAmount(item.amount)} / ${item.share}%</strong>
                 </div>
             `).join("");
@@ -443,8 +867,9 @@
                 if (row.weekday === 0) classes.push("sunday");
                 if (row.weekday === 6) classes.push("saturday");
                 if (holidaySet.has(row.dateKey)) classes.push("holiday");
+                if (row.dateKey === selectedDayKey) classes.push("selected");
                 return `
-                    <div class="${classes.join(" ")}">
+                    <div class="${classes.join(" ")}" data-date="${row.dateKey}">
                         <div class="date"><span>${row.day}</span><span>${weekdayLabels[row.weekday]}</span></div>
                         <div class="income-day">+${row.income ? currencyFormatter.format(row.income) : 0}</div>
                         <div class="expense-day">-${row.expense ? currencyFormatter.format(row.expense) : 0}</div>
@@ -452,10 +877,57 @@
                 `;
             }).join("");
             elements.calendar.innerHTML = `${weekdayHeader}${leadingEmpty}${days}`;
+
+            if (selectedDayKey && rows.some((row) => row.dateKey === selectedDayKey)) {
+                renderDayDetail(selectedDayKey);
+            } else {
+                selectedDayKey = null;
+                document.getElementById("dayDetail").style.display = "none";
+            }
         }
+
+        function renderDayDetail(dateKey) {
+            selectedDayKey = dateKey;
+            const dayTransactions = latestAnalysisTransactions.filter((item) => item.occurredAt === dateKey);
+            const panel = document.getElementById("dayDetail");
+            panel.style.display = "block";
+            document.getElementById("dayDetailTitle").textContent = `${dateKey} の記録`;
+            document.getElementById("dayDetailList").innerHTML = dayTransactions.length
+                ? dayTransactions.map((item) => `
+                    <div class="entry">
+                        <div class="entry-top">
+                            <div>
+                                <div class="category-label">${escapeHtml(item.category)}</div>
+                                ${item.memo ? `<div class="memo-label">${escapeHtml(item.memo)}</div>` : ""}
+                            </div>
+                            <div class="amount ${item.kind === "INCOME" ? "income" : "expense"}">${item.kind === "INCOME" ? "+" : "-"}${item.amountLabel}</div>
+                        </div>
+                    </div>
+                `).join("")
+                : '<div class="entry"><p class="muted">この日の記録はありません。</p></div>';
+        }
+
+        elements.calendar.addEventListener("click", (event) => {
+            const dayEl = event.target.closest(".day[data-date]");
+            if (!dayEl) return;
+            const dateKey = dayEl.dataset.date;
+            if (selectedDayKey === dateKey) {
+                selectedDayKey = null;
+                document.getElementById("dayDetail").style.display = "none";
+                dayEl.classList.remove("selected");
+                return;
+            }
+            document.querySelectorAll(".day.selected").forEach((el) => el.classList.remove("selected"));
+            dayEl.classList.add("selected");
+            renderDayDetail(dateKey);
+        });
+
+        let chartBarRects = [];
 
         function renderMonthlyChart(graph) {
             latestMonthlyGraph = graph;
+            chartBarRects = [];
+            hideChartTooltip();
             const canvas = elements.monthlyChart;
             const context = canvas.getContext("2d");
             const dpr = window.devicePixelRatio || 1;
@@ -491,111 +963,498 @@
                 const expenseHeight = (item.expense / maxValue) * chartHeight;
                 const incomeX = centerX - barWidth - 3;
                 const expenseX = centerX + 3;
+                const incomeY = padding.top + chartHeight - incomeHeight;
+                const expenseY = padding.top + chartHeight - expenseHeight;
 
                 context.fillStyle = "#1d4ed8";
-                context.fillRect(incomeX, padding.top + chartHeight - incomeHeight, barWidth, incomeHeight);
+                context.fillRect(incomeX, incomeY, barWidth, incomeHeight);
                 context.fillStyle = "#dc2626";
-                context.fillRect(expenseX, padding.top + chartHeight - expenseHeight, barWidth, expenseHeight);
+                context.fillRect(expenseX, expenseY, barWidth, expenseHeight);
                 context.fillStyle = "#132238";
                 context.fillText(String(index + 1), centerX - 4, height - 14);
+
+                // ホバー/タップで金額を吹き出し表示するための当たり判定を記録
+                chartBarRects.push({
+                    x: incomeX, y: incomeY, width: barWidth, height: Math.max(incomeHeight, 4),
+                    label: `${item.month}月の収入`, amount: item.income,
+                });
+                chartBarRects.push({
+                    x: expenseX, y: expenseY, width: barWidth, height: Math.max(expenseHeight, 4),
+                    label: `${item.month}月の支出`, amount: item.expense,
+                });
             });
 
             elements.monthlyChartLabel.textContent = `青が収入、赤が支出です。対象年: ${graph[0]?.monthKey?.slice(0, 4) ?? initialData.year}`;
         }
 
-        function renderSplitSessions(items) {
-            elements.splitResult.innerHTML = items.length
-                ? items.map((session) => `
-                    <article class="entry">
-                        <div class="entry-top">
-                            <div><div class="badge">${session.title}</div><h3 style="margin-top: 10px; font-size: 1rem;">合計 ${formatAmount(session.totalAmount)}</h3></div>
-                            <div class="muted">${session.createdAt.slice(0, 10)}</div>
-                        </div>
-                        <div class="split-list" style="margin-top: 12px;">
-                            ${(session.result || []).map((transfer) => `<div class="split-row"><span>${transfer.from} → ${transfer.to}</span><strong>${formatAmount(transfer.amount)}</strong></div>`).join("") || '<div class="split-row"><span>精算不要</span><strong>0円</strong></div>'}
-                        </div>
-                    </article>
-                `).join("")
-                : '<div class="entry"><p class="muted">割り勘記録はまだありません。</p></div>';
+        function findChartBarAt(x, y) {
+            return chartBarRects.find((barRect) => x >= barRect.x && x <= barRect.x + barRect.width && y >= barRect.y && y <= barRect.y + barRect.height);
         }
 
-        function updateSummary(summary) {
-            document.getElementById("heroIncome").textContent = formatAmount(summary.totals.income);
-            document.getElementById("heroExpense").textContent = formatAmount(summary.totals.expense);
-            document.getElementById("heroBalance").textContent = formatAmount(summary.totals.balance);
-            document.getElementById("summaryMonth").textContent = summary.monthKey;
-            document.getElementById("averageDailyExpense").textContent = formatAmount(summary.totals.averageDailyExpense);
-            document.getElementById("satisfactionSummary").textContent = summary.satisfactionBreakdown.length ? summary.satisfactionBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") : "未記録";
-            document.getElementById("spendingStyleSummary").textContent = summary.spendingStyleBreakdown.length ? summary.spendingStyleBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") : "未記録";
-            renderCategoryPie(summary.categoryBreakdown);
-            renderCalendar(summary.dailyRows);
+        function showChartTooltip(barRect) {
+            const tooltip = elements.chartTooltip;
+            tooltip.textContent = `${barRect.label}: ${formatAmount(barRect.amount)}`;
+            tooltip.style.left = `${barRect.x + barRect.width / 2}px`;
+            tooltip.style.top = `${barRect.y}px`;
+            tooltip.style.display = "block";
         }
 
-        function createParticipantRow(name = "", paidAmount = "") {
-            const row = document.createElement("div");
-            row.className = "participant-row";
-            row.innerHTML = `<input type="text" placeholder="参加者名" value="${name}"><input type="number" min="0" placeholder="立て替え額" value="${paidAmount}">`;
-            return row;
-        }
-
-        function syncParticipantRows() {
-            if (!elements.participants.children.length) {
-                elements.participants.appendChild(createParticipantRow("Aさん", "0"));
-                elements.participants.appendChild(createParticipantRow("Bさん", "0"));
+        function hideChartTooltip() {
+            if (elements.chartTooltip) {
+                elements.chartTooltip.style.display = "none";
             }
         }
 
-        async function refreshDashboard() {
+        function handleChartPointer(event) {
+            const canvasRect = elements.monthlyChart.getBoundingClientRect();
+            const x = event.clientX - canvasRect.left;
+            const y = event.clientY - canvasRect.top;
+            const barRect = findChartBarAt(x, y);
+            // 別の棒を指したら古い吹き出しは自動的に消え、新しい方だけが表示される（要素は1つだけなので置き換わる）
+            if (barRect) {
+                showChartTooltip(barRect);
+            } else {
+                hideChartTooltip();
+            }
+        }
+
+        elements.monthlyChart.addEventListener("mousemove", handleChartPointer);
+        elements.monthlyChart.addEventListener("mouseleave", hideChartTooltip);
+        elements.monthlyChart.addEventListener("click", handleChartPointer);
+
+        function renderSplitSessions(items) {
+            latestSplitSessions = items;
+            elements.splitResult.innerHTML = items.length
+                ? items.map((session) => {
+                    const participants = session.participants || [];
+                    const payments = session.payments || [];
+                    return `
+                    <article class="entry">
+                        <div class="entry-top">
+                            <div><div class="badge">${escapeHtml(session.title)}</div><h3 style="margin-top: 10px; font-size: 1rem;">合計 ${formatAmount(session.totalAmount)}</h3></div>
+                            <div class="muted">${session.createdAt.slice(0, 10)}</div>
+                        </div>
+                        <p class="muted" style="margin-top: 10px;">参加者: ${participants.map(escapeHtml).join(" / ") || "-"}</p>
+
+                        <div style="margin-top: 12px;">
+                            <div class="muted" style="margin-bottom: 6px;">支払い明細</div>
+                            <div class="split-list">
+                                ${payments.map((payment) => {
+                                    const coveredNames = payment.coveredBy && payment.coveredBy.length ? payment.coveredBy : participants;
+                                    return `<div class="split-row"><span>${escapeHtml(payment.payer)} が支払い（対象: ${coveredNames.map(escapeHtml).join("・") || "全員"}）</span><strong>${formatAmount(payment.amount)}</strong></div>`;
+                                }).join("") || '<div class="split-row"><span>支払い明細なし</span><strong>0円</strong></div>'}
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 12px;">
+                            <div class="muted" style="margin-bottom: 6px;">精算結果</div>
+                            <div class="split-list">
+                                ${(session.result || []).map((transfer) => `<div class="split-row"><span>${escapeHtml(transfer.from)} → ${escapeHtml(transfer.to)}</span><strong>${formatAmount(transfer.amount)}</strong></div>`).join("") || '<div class="split-row"><span>精算不要</span><strong>0円</strong></div>'}
+                            </div>
+                        </div>
+
+                        <div class="entry-actions">
+                            <button type="button" class="secondary btn-sm edit-split" data-id="${session.id}">編集</button>
+                            <button type="button" class="danger btn-sm delete-split" data-id="${session.id}">削除</button>
+                        </div>
+                    </article>
+                `;
+                }).join("")
+                : '<div class="entry"><p class="muted">この月の割り勘記録はまだありません。</p></div>';
+        }
+
+        function renderAnalysisSummary(summary) {
+            document.getElementById("analysisIncome").textContent = formatAmount(summary.totals.income);
+            document.getElementById("analysisExpense").textContent = formatAmount(summary.totals.expense);
+            document.getElementById("analysisBalance").textContent = formatAmount(summary.totals.balance);
+            document.getElementById("averageDailyExpense").textContent = formatAmount(summary.totals.averageDailyExpense);
+            document.getElementById("satisfactionSummary").textContent = summary.satisfactionBreakdown.length ? summary.satisfactionBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") : "未記録";
+            document.getElementById("spendingStyleSummary").textContent = summary.spendingStyleBreakdown.length ? summary.spendingStyleBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") : "未記録";
+            renderCategoryPie(summary.categoryBreakdown, elements.expenseCategoryPie, elements.expenseCategoryLegend, "支出データなし");
+            renderCategoryPie(summary.incomeCategoryBreakdown, elements.incomeCategoryPie, elements.incomeCategoryLegend, "収入データなし");
+            latestAnalysisTransactions = summary.transactions || [];
+            renderCalendar(summary.dailyRows);
+        }
+
+        function renderCategorySavings(items) {
+            const container = document.getElementById("categorySavingsList");
+            if (!items.length) {
+                container.innerHTML = '<div class="entry"><p class="muted">比較できる支出データがまだありません。</p></div>';
+                return;
+            }
+            container.innerHTML = items.map((item) => {
+                const rateLabel = item.rate === null ? "前月データなし" : `${item.rate > 0 ? "節約 " : ""}${item.rate}%`;
+                const rateClass = item.rate === null ? "" : item.rate >= 0 ? "income" : "expense";
+                return `
+                    <div class="entry">
+                        <div class="entry-top">
+                            <div class="badge">${escapeHtml(item.category)}</div>
+                            <div class="amount ${rateClass}">${rateLabel}</div>
+                        </div>
+                        <p class="muted" style="margin-top: 8px;">今月 ${formatAmount(item.currentAmount)} / 前月 ${formatAmount(item.previousAmount)}</p>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function renderSavings(data) {
+            document.getElementById("currentSavings").textContent = formatAmount(data.totalSavings);
+            document.getElementById("savingsGoalDisplay").textContent = data.savingsGoal > 0 ? formatAmount(data.savingsGoal) : "未設定";
+            document.getElementById("goalProgress").textContent = data.goalProgress === null ? "-" : `${data.goalProgress}%`;
+            document.getElementById("goalProgressFill").style.width = `${Math.max(0, Math.min(100, data.goalProgress ?? 0))}%`;
+            if (document.activeElement !== document.getElementById("savingsGoalInput")) {
+                document.getElementById("savingsGoalInput").value = data.savingsGoal > 0 ? data.savingsGoal : "";
+            }
+            document.getElementById("savingsMonthIncome").textContent = formatAmount(data.currentMonth.income);
+            document.getElementById("savingsMonthExpense").textContent = formatAmount(data.currentMonth.expense);
+            document.getElementById("savingsMonthRate").textContent = data.currentMonth.savingsRate === null ? "-" : `${data.currentMonth.savingsRate}%`;
+            renderCategorySavings(data.categorySavings);
+        }
+
+        // --- 割り勘：参加者の追加・削除（×） ---
+        function getParticipantNames() {
+            return [...elements.participants.querySelectorAll(".participant-name")]
+                .map((input) => input.value.trim())
+                .filter((name) => name.length > 0);
+        }
+
+        function createParticipantRow(name = "") {
+            const row = document.createElement("div");
+            row.className = "participant-row";
+            row.innerHTML = `
+                <input type="text" class="participant-name" placeholder="参加者名" value="${escapeHtml(name)}">
+                <button type="button" class="remove-btn" title="この参加者を削除">×</button>
+            `;
+            row.querySelector(".remove-btn").addEventListener("click", () => {
+                row.remove();
+                syncPaymentEditorOptions();
+            });
+            row.querySelector(".participant-name").addEventListener("change", syncPaymentEditorOptions);
+            return row;
+        }
+
+        // --- 割り勘：支払い明細の入力エリア（誰が payer / 誰の分か coveredBy）---
+        function currentCoveredSelection() {
+            return [...document.getElementById("paymentCoveredInput").querySelectorAll("input:checked")].map((box) => box.value);
+        }
+
+        function syncPaymentEditorCheckboxes(selectedNames) {
+            const names = getParticipantNames();
+            const container = document.getElementById("paymentCoveredInput");
+            const shouldCheckAll = selectedNames.length === 0;
+            container.innerHTML = names.map((name) => `
+                <label class="covered-item">
+                    <input type="checkbox" value="${escapeHtml(name)}" ${shouldCheckAll || selectedNames.includes(name) ? "checked" : ""}>
+                    ${escapeHtml(name)}
+                </label>
+            `).join("");
+        }
+
+        function syncPaymentEditorOptions() {
+            const names = getParticipantNames();
+            const select = document.getElementById("paymentPayerInput");
+            const previousPayer = select.value;
+            select.innerHTML = `<option value="">選択してください</option>` + names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+            if (names.includes(previousPayer)) {
+                select.value = previousPayer;
+            }
+            syncPaymentEditorCheckboxes(currentCoveredSelection());
+        }
+
+        function resetPaymentEditor() {
+            const editor = document.getElementById("paymentEditor");
+            editor.dataset.editingIndex = "";
+            document.getElementById("paymentPayerInput").value = "";
+            document.getElementById("paymentAmountInput").value = "";
+            syncPaymentEditorCheckboxes([]);
+            document.getElementById("commitPayment").textContent = "この内容を追加する";
+            document.getElementById("cancelPaymentEdit").style.display = "none";
+        }
+
+        function renderPaymentsList() {
+            const container = elements.paymentsList;
+            if (!splitPayments.length) {
+                container.innerHTML = '<div class="entry"><p class="muted">まだ支払い明細がありません。下のフォームから追加してください。</p></div>';
+                return;
+            }
+            const participants = getParticipantNames();
+            container.innerHTML = splitPayments.map((payment, index) => {
+                const coveredNames = payment.coveredBy && payment.coveredBy.length ? payment.coveredBy : participants;
+                return `
+                    <div class="split-row">
+                        <span>${escapeHtml(payment.payer)} が支払い（対象: ${coveredNames.map(escapeHtml).join("・") || "全員"}）</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <strong>${formatAmount(payment.amount)}</strong>
+                            <button type="button" class="secondary btn-sm edit-payment" data-index="${index}">編集</button>
+                            <button type="button" class="danger btn-sm delete-payment" data-index="${index}">削除</button>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        document.getElementById("commitPayment").addEventListener("click", () => {
+            const payer = document.getElementById("paymentPayerInput").value;
+            const amount = Number(document.getElementById("paymentAmountInput").value);
+            const coveredBy = currentCoveredSelection();
+
+            if (!payer) {
+                alert("支払った人を選択してください。");
+                return;
+            }
+            if (!amount || amount <= 0) {
+                alert("金額を入力してください。");
+                return;
+            }
+
+            const editor = document.getElementById("paymentEditor");
+            const editingIndex = editor.dataset.editingIndex;
+            const paymentEntry = { payer, amount, coveredBy };
+
+            if (editingIndex !== undefined && editingIndex !== "") {
+                splitPayments[Number(editingIndex)] = paymentEntry;
+            } else {
+                splitPayments.push(paymentEntry);
+            }
+
+            resetPaymentEditor();
+            renderPaymentsList();
+        });
+
+        document.getElementById("cancelPaymentEdit").addEventListener("click", resetPaymentEditor);
+
+        elements.paymentsList.addEventListener("click", (event) => {
+            const editBtn = event.target.closest(".edit-payment");
+            const deleteBtn = event.target.closest(".delete-payment");
+
+            if (editBtn) {
+                const index = Number(editBtn.dataset.index);
+                const payment = splitPayments[index];
+                if (!payment) return;
+                document.getElementById("paymentPayerInput").value = payment.payer;
+                document.getElementById("paymentAmountInput").value = payment.amount;
+                syncPaymentEditorCheckboxes(payment.coveredBy || []);
+                const editor = document.getElementById("paymentEditor");
+                editor.dataset.editingIndex = String(index);
+                document.getElementById("commitPayment").textContent = "この内容で更新する";
+                document.getElementById("cancelPaymentEdit").style.display = "inline-flex";
+            }
+
+            if (deleteBtn) {
+                const index = Number(deleteBtn.dataset.index);
+                splitPayments.splice(index, 1);
+                renderPaymentsList();
+            }
+        });
+
+        function initializeSplitForm() {
+            if (!elements.participants.children.length) {
+                elements.participants.appendChild(createParticipantRow("Aさん"));
+                elements.participants.appendChild(createParticipantRow("Bさん"));
+            }
+            syncPaymentEditorOptions();
+            renderPaymentsList();
+        }
+
+        document.getElementById("addParticipant").addEventListener("click", () => {
+            elements.participants.appendChild(createParticipantRow());
+            syncPaymentEditorOptions();
+        });
+
+        function resetTransactionForm() {
+            elements.transactionForm.reset();
+            delete elements.transactionForm.dataset.editingId;
+            document.getElementById("kind").value = "EXPENSE";
+            document.querySelectorAll(".kind-btn").forEach((b) => b.classList.toggle("active", b.dataset.kind === "EXPENSE"));
+            document.getElementById("transactionSubmitBtn").textContent = "保存する";
+            document.getElementById("cancelEditTransaction").style.display = "none";
+        }
+
+        function startEditTransaction(item) {
+            elements.transactionForm.dataset.editingId = item.id;
+            document.getElementById("kind").value = item.kind;
+            document.querySelectorAll(".kind-btn").forEach((b) => b.classList.toggle("active", b.dataset.kind === item.kind));
+            document.getElementById("amount").value = item.amount;
+            document.getElementById("occurredAt").value = item.occurredAt;
+            populateCategorySelect(item.category);
+            document.getElementById("paymentMethod").value = item.paymentMethod;
+            document.getElementById("satisfaction").value = item.satisfaction;
+            document.getElementById("spendingStyle").value = item.spendingStyle;
+            document.getElementById("memo").value = item.memo || "";
+            document.getElementById("transactionSubmitBtn").textContent = "更新する";
+            document.getElementById("cancelEditTransaction").style.display = "inline-flex";
+            document.querySelector('.tab-btn[data-tab="tab-record"]').click();
+            elements.transactionForm.scrollIntoView({ behavior: "smooth" });
+        }
+
+        elements.transactionList.addEventListener("click", async (event) => {
+            const editBtn = event.target.closest(".edit-transaction");
+            const deleteBtn = event.target.closest(".delete-transaction");
+
+            if (editBtn) {
+                const item = latestTransactions.find((t) => String(t.id) === editBtn.dataset.id);
+                if (item) startEditTransaction(item);
+            }
+
+            if (deleteBtn) {
+                if (confirm("この記録を削除しますか？")) {
+                    await api(`/api/transactions/${deleteBtn.dataset.id}`, { method: "DELETE" });
+                    await refreshAll();
+                }
+            }
+        });
+
+        document.getElementById("cancelEditTransaction").addEventListener("click", resetTransactionForm);
+
+        function resetSplitForm() {
+            delete elements.splitForm.dataset.editingId;
+            document.getElementById("splitTitle").value = "グループ精算";
+            elements.participants.innerHTML = "";
+            splitPayments = [];
+            resetPaymentEditor();
+            document.getElementById("splitSubmitBtn").textContent = "計算して保存";
+            document.getElementById("cancelEditSplit").style.display = "none";
+            initializeSplitForm();
+        }
+
+        function startEditSplit(session) {
+            elements.splitForm.dataset.editingId = session.id;
+            document.getElementById("splitTitle").value = session.title;
+            elements.participants.innerHTML = "";
+            (session.participants || []).forEach((name) => elements.participants.appendChild(createParticipantRow(name)));
+            splitPayments = (session.payments || []).map((payment) => ({ ...payment }));
+            resetPaymentEditor();
+            syncPaymentEditorOptions();
+            renderPaymentsList();
+            document.getElementById("splitSubmitBtn").textContent = "更新する";
+            document.getElementById("cancelEditSplit").style.display = "inline-flex";
+            document.querySelector('.tab-btn[data-tab="tab-split"]').click();
+            elements.splitForm.scrollIntoView({ behavior: "smooth" });
+        }
+
+        elements.splitResult.addEventListener("click", async (event) => {
+            const editBtn = event.target.closest(".edit-split");
+            const deleteBtn = event.target.closest(".delete-split");
+
+            if (editBtn) {
+                const session = latestSplitSessions.find((s) => String(s.id) === editBtn.dataset.id);
+                if (session) startEditSplit(session);
+            }
+
+            if (deleteBtn) {
+                if (confirm("この割り勘記録を削除しますか？")) {
+                    await api(`/api/split-sessions/${deleteBtn.dataset.id}`, { method: "DELETE" });
+                    await refreshAll();
+                }
+            }
+        });
+
+        document.getElementById("cancelEditSplit").addEventListener("click", resetSplitForm);
+
+        // --- タブごとに独立した再取得 ---
+        async function refreshRecordList() {
+            const month = elements.recordMonth.value || initialData.monthKey;
+            const transactions = await api(`/api/transactions?month=${month}`);
+            renderTransactions(transactions.items);
+        }
+
+        async function refreshAnalysis() {
             const month = elements.analysisMonth.value || initialData.monthKey;
-            const year = Number(elements.analysisYear.value || initialData.year);
-            const [transactions, summary, monthlyGraph, splitSessions] = await Promise.all([
-                api(`/api/transactions?month=${month}`),
+            const year = Number(month.slice(0, 4));
+            const [summary, monthlyGraph] = await Promise.all([
                 api(`/api/analytics/summary?month=${month}`),
                 api(`/api/analytics/monthly?year=${year}`),
-                api(`/api/split-sessions`),
             ]);
-            renderTransactions(transactions.items);
-            updateSummary(summary);
+            renderAnalysisSummary(summary);
             renderMonthlyChart(monthlyGraph.items);
-            renderSplitSessions(splitSessions.items);
-            document.getElementById("transactionCount").textContent = `${transactions.items.length}件`;
         }
+
+        async function refreshSplitList() {
+            const month = elements.splitMonth.value || initialData.monthKey;
+            const splitSessions = await api(`/api/split-sessions?month=${month}`);
+            renderSplitSessions(splitSessions.items);
+        }
+
+        async function refreshSavings() {
+            const month = elements.savingsMonth.value || initialData.monthKey;
+            const savings = await api(`/api/analytics/savings?month=${month}`);
+            renderSavings(savings);
+        }
+
+        async function refreshAll() {
+            await Promise.all([
+                refreshRecordList(),
+                refreshAnalysis(),
+                refreshSplitList(),
+                refreshSavings(),
+            ]);
+        }
+
+        wireMonthNav(elements.recordMonth, "recordPrevMonth", "recordNextMonth", refreshRecordList);
+        wireMonthNav(elements.analysisMonth, "analysisPrevMonth", "analysisNextMonth", refreshAnalysis);
+        wireMonthNav(elements.splitMonth, "splitPrevMonth", "splitNextMonth", refreshSplitList);
+        wireMonthNav(elements.savingsMonth, "savingsPrevMonth", "savingsNextMonth", refreshSavings);
+
+        document.getElementById("saveSavingsGoal").addEventListener("click", async () => {
+            const amount = Number(document.getElementById("savingsGoalInput").value || 0);
+            await api("/api/settings/savings-goal", { method: "PUT", body: JSON.stringify({ amount }) });
+            await refreshSavings();
+        });
 
         elements.transactionForm.addEventListener("submit", async (event) => {
             event.preventDefault();
             const formData = new FormData(elements.transactionForm);
-            await api("/api/transactions", { method: "POST", body: JSON.stringify(Object.fromEntries(formData.entries())) });
-            elements.transactionForm.reset();
-            await refreshDashboard();
+            const editingId = elements.transactionForm.dataset.editingId;
+            if (editingId) {
+                await api(`/api/transactions/${editingId}`, { method: "PUT", body: JSON.stringify(Object.fromEntries(formData.entries())) });
+            } else {
+                await api("/api/transactions", { method: "POST", body: JSON.stringify(Object.fromEntries(formData.entries())) });
+            }
+            resetTransactionForm();
+            await refreshAll();
         });
 
         elements.splitForm.addEventListener("submit", async (event) => {
             event.preventDefault();
-            const rows = [...elements.participants.querySelectorAll(".participant-row")];
-            const participants = rows.map((row) => {
-                const [nameInput, paidInput] = row.querySelectorAll("input");
-                return { name: nameInput.value, paidAmount: paidInput.value };
-            });
 
-            await api("/api/split-sessions", {
-                method: "POST",
-                body: JSON.stringify({ title: document.getElementById("splitTitle").value, totalAmount: document.getElementById("totalAmount").value, participants }),
-            });
-            await refreshDashboard();
+            const participants = getParticipantNames();
+            if (participants.length === 0) {
+                alert("参加者を1人以上入力してください。");
+                return;
+            }
+
+            if (splitPayments.length === 0) {
+                alert("支払い明細（誰がいくら払ったか）を1件以上追加してください。");
+                return;
+            }
+
+            const editingId = elements.splitForm.dataset.editingId;
+            const payload = {
+                title: document.getElementById("splitTitle").value,
+                participants,
+                payments: splitPayments,
+            };
+
+            if (editingId) {
+                await api(`/api/split-sessions/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
+            } else {
+                await api("/api/split-sessions", { method: "POST", body: JSON.stringify(payload) });
+            }
+
+            resetSplitForm();
+            await refreshAll();
         });
 
-        document.getElementById("addParticipant").addEventListener("click", () => { elements.participants.appendChild(createParticipantRow()); });
-        document.getElementById("refreshAnalysis").addEventListener("click", refreshDashboard);
-        document.getElementById("reloadDashboard").addEventListener("click", refreshDashboard);
-        elements.analysisMonth.addEventListener("change", refreshDashboard);
-        elements.analysisYear.addEventListener("change", refreshDashboard);
         window.addEventListener("resize", () => { renderMonthlyChart(latestMonthlyGraph); });
 
-        syncParticipantRows();
+        initializeSplitForm();
+        renderCategoryManagerList();
+        populateCategorySelect();
         renderTransactions(initialData.transactions);
-        updateSummary(initialData.monthSummary);
+        renderAnalysisSummary(initialData.monthSummary);
         renderMonthlyChart(initialData.yearlyGraph);
         renderSplitSessions(initialData.splitSessions);
+        renderSavings(initialData.savings);
     </script>
 </body>
 </html>

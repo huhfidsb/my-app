@@ -67,6 +67,13 @@ type SplitSettlementRecord = {
   updatedAt: Date;
 };
 
+// 1件の支払い：誰が払ったか(payer)、その支払いが誰の分だったか(coveredBy)
+type SplitPayment = {
+  payer: string;
+  amount: number;
+  coveredBy: string[];
+};
+
 function toIsoMonth(date: Date) {
   return date.toISOString().slice(0, 7);
 }
@@ -103,6 +110,18 @@ function startOfYearUtc(year: number) {
 
 function endOfYearUtc(year: number) {
   return new Date(Date.UTC(year + 1, 0, 1));
+}
+
+function addMonths(monthKey: string, delta: number) {
+  const [yearText = "1970", monthText = "01"] = monthKey.split("-");
+  const date = new Date(
+    Date.UTC(
+      Number.parseInt(yearText, 10),
+      Number.parseInt(monthText, 10) - 1 + delta,
+      1,
+    ),
+  );
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 function parseDateInput(value?: string) {
@@ -148,6 +167,77 @@ function transactionToView(transaction: any) {
     occurredAt: toIsoDate(transaction.occurredAt),
     amountLabel: formatCurrency(transaction.amount),
   };
+}
+
+function buildTransactionData(body: any) {
+  return {
+    kind: parseEnumValue(body.kind, transactionKinds, "EXPENSE"),
+    amount: clampInt(body.amount),
+    category: String(body.category || "未分類"),
+    paymentMethod: parseEnumValue(body.paymentMethod, paymentMethods, "OTHER"),
+    satisfaction: parseEnumValue(
+      body.satisfaction,
+      satisfactionLevels,
+      "NORMAL",
+    ),
+    spendingStyle: parseEnumValue(
+      body.spendingStyle,
+      spendingStyles,
+      "CONSUMPTION",
+    ),
+    memo: String(body.memo || "").trim() || null,
+  };
+}
+
+function parseSplitPayload(body: any) {
+  const title = String(body.title || "割り勘").trim() || "割り勘";
+
+  const rawParticipants: unknown[] = Array.isArray(body.participants)
+    ? body.participants
+    : JSON.parse(String(body.participants || "[]"));
+
+  const participants = rawParticipants
+    .map((name) => String(name ?? "").trim())
+    .filter((name) => name.length > 0);
+
+  if (participants.length === 0) {
+    return null;
+  }
+
+  const rawPayments: Array<{
+    payer?: string;
+    amount?: string | number;
+    coveredBy?: unknown;
+  }> = Array.isArray(body.payments)
+    ? body.payments
+    : JSON.parse(String(body.payments || "[]"));
+
+  const payments: SplitPayment[] = rawPayments
+    .map((payment) => {
+      const coveredByRaw = Array.isArray(payment.coveredBy)
+        ? payment.coveredBy
+        : [];
+
+      return {
+        payer: String(payment.payer || "").trim(),
+        amount: clampInt(payment.amount),
+        coveredBy: coveredByRaw
+          .map((name) => String(name ?? "").trim())
+          .filter((name) => participants.includes(name)),
+      };
+    })
+    .filter(
+      (payment) =>
+        payment.payer &&
+        participants.includes(payment.payer) &&
+        payment.amount > 0,
+    );
+
+  if (payments.length === 0) {
+    return null;
+  }
+
+  return { title, participants, payments };
 }
 
 async function fetchTransactions(
@@ -205,12 +295,13 @@ function buildDailyRows(transactions: TransactionRecord[], monthKey: string) {
   return rows;
 }
 
-function buildCategoryBreakdown(transactions: TransactionRecord[]) {
+function buildCategoryBreakdown(
+  transactions: TransactionRecord[],
+  kind: TransactionKind = "EXPENSE",
+) {
   const buckets = new Map<string, number>();
 
-  for (const transaction of transactions.filter(
-    (item) => item.kind === "EXPENSE",
-  )) {
+  for (const transaction of transactions.filter((item) => item.kind === kind)) {
     buckets.set(
       transaction.category,
       (buckets.get(transaction.category) ?? 0) + transaction.amount,
@@ -278,36 +369,49 @@ function buildMonthlyGraph(transactions: TransactionRecord[], year: number) {
 }
 
 function calculateSplitSettlement(
-  totalAmount: number,
-  participants: { name: string; paidAmount: number }[],
+  participants: string[],
+  payments: SplitPayment[],
 ) {
-  const participantsWithBalance = participants.map((participant) => ({
-    ...participant,
-    share: Math.floor(totalAmount / participants.length),
-    balance:
-      participant.paidAmount - Math.floor(totalAmount / participants.length),
-  }));
+  const balances = new Map<string, number>();
 
-  let remainder =
-    totalAmount -
-    Math.floor(totalAmount / participants.length) * participants.length;
-
-  for (const participant of participantsWithBalance) {
-    if (remainder <= 0) {
-      break;
-    }
-
-    participant.share += 1;
-    participant.balance -= 1;
-    remainder -= 1;
+  for (const name of participants) {
+    balances.set(name, 0);
   }
 
-  const creditors = participantsWithBalance.filter(
-    (participant) => participant.balance > 0,
-  );
-  const debtors = participantsWithBalance.filter(
-    (participant) => participant.balance < 0,
-  );
+  for (const payment of payments) {
+    // 支払った人はその全額をプラス（後で精算相手からもらう分）
+    const payerBalance = balances.get(payment.payer) ?? 0;
+    balances.set(payment.payer, payerBalance + payment.amount);
+
+    // 対象者未指定なら参加者全員で割る
+    const coveredBy =
+      payment.coveredBy.length > 0 ? payment.coveredBy : participants;
+    const base = Math.floor(payment.amount / coveredBy.length);
+    let remainder = payment.amount - base * coveredBy.length;
+
+    for (const name of coveredBy) {
+      const extra = remainder > 0 ? 1 : 0;
+
+      if (extra) {
+        remainder -= 1;
+      }
+
+      const currentBalance = balances.get(name) ?? 0;
+      balances.set(name, currentBalance - base - extra);
+    }
+  }
+
+  const creditors: { name: string; balance: number }[] = [];
+  const debtors: { name: string; balance: number }[] = [];
+
+  for (const [name, balance] of balances) {
+    if (balance > 0) {
+      creditors.push({ name, balance });
+    } else if (balance < 0) {
+      debtors.push({ name, balance });
+    }
+  }
+
   const transfers: { from: string; to: string; amount: number }[] = [];
 
   let creditorIndex = 0;
@@ -323,11 +427,13 @@ function calculateSplitSettlement(
 
     const amount = Math.min(creditor.balance, Math.abs(debtor.balance));
 
-    transfers.push({
-      from: debtor.name,
-      to: creditor.name,
-      amount,
-    });
+    if (amount > 0) {
+      transfers.push({
+        from: debtor.name,
+        to: creditor.name,
+        amount,
+      });
+    }
 
     creditor.balance -= amount;
     debtor.balance += amount;
@@ -341,10 +447,14 @@ function calculateSplitSettlement(
     }
   }
 
+  const totalAmount = sum(payments.map((payment) => payment.amount));
+
   return {
     totalAmount,
-    sharePerPerson: Math.floor(totalAmount / participants.length),
-    participants: participantsWithBalance,
+    balances: [...balances.entries()].map(([name, balance]) => ({
+      name,
+      balance,
+    })),
     transfers,
   };
 }
@@ -376,7 +486,11 @@ async function buildMonthSummary(monthKey: string) {
   const daysInMonth = new Date(
     Date.UTC(Number.parseInt(yearText, 10), Number.parseInt(monthText, 10), 0),
   ).getUTCDate();
-  const categoryBreakdown = buildCategoryBreakdown(transactions);
+  const categoryBreakdown = buildCategoryBreakdown(transactions, "EXPENSE");
+  const incomeCategoryBreakdown = buildCategoryBreakdown(
+    transactions,
+    "INCOME",
+  );
   const satisfactionBreakdown = buildCountBreakdown<SatisfactionLevel>(
     transactions,
     "satisfaction",
@@ -397,6 +511,7 @@ async function buildMonthSummary(monthKey: string) {
     transactions: transactionViews,
     dailyRows: buildDailyRows(transactions, monthKey),
     categoryBreakdown,
+    incomeCategoryBreakdown,
     satisfactionBreakdown,
     spendingStyleBreakdown,
   };
@@ -415,6 +530,132 @@ async function getYearlyGraphData(year: number) {
   return buildMonthlyGraph(transactions, year);
 }
 
+async function buildSavingsAnalytics(monthKey: string) {
+  const previousMonthKey = addMonths(monthKey, -1);
+
+  const [
+    incomeAgg,
+    expenseAgg,
+    currentTransactions,
+    previousTransactions,
+    goalSetting,
+  ] = await Promise.all([
+    prisma.transaction.aggregate({
+      _sum: { amount: true },
+      where: { kind: "INCOME" },
+    }),
+    prisma.transaction.aggregate({
+      _sum: { amount: true },
+      where: { kind: "EXPENSE" },
+    }),
+    prisma.transaction.findMany({
+      where: {
+        occurredAt: {
+          gte: startOfMonthUtc(monthKey),
+          lt: endOfMonthUtc(monthKey),
+        },
+      },
+    }),
+    prisma.transaction.findMany({
+      where: {
+        occurredAt: {
+          gte: startOfMonthUtc(previousMonthKey),
+          lt: endOfMonthUtc(previousMonthKey),
+        },
+      },
+    }),
+    prisma.appSetting.findUnique({ where: { key: "savingsGoalAmount" } }),
+  ]);
+
+  const totalIncome = incomeAgg._sum.amount ?? 0;
+  const totalExpense = expenseAgg._sum.amount ?? 0;
+  const totalSavings = totalIncome - totalExpense;
+  const savingsGoal = clampInt(goalSetting?.value, 0);
+
+  const currentIncome = sum(
+    currentTransactions
+      .filter((t: TransactionRecord) => t.kind === "INCOME")
+      .map((t: TransactionRecord) => t.amount),
+  );
+  const currentExpense = sum(
+    currentTransactions
+      .filter((t: TransactionRecord) => t.kind === "EXPENSE")
+      .map((t: TransactionRecord) => t.amount),
+  );
+
+  const currentCategoryMap = new Map<string, number>();
+  for (const transaction of currentTransactions as TransactionRecord[]) {
+    if (transaction.kind === "EXPENSE") {
+      currentCategoryMap.set(
+        transaction.category,
+        (currentCategoryMap.get(transaction.category) ?? 0) +
+          transaction.amount,
+      );
+    }
+  }
+
+  const previousCategoryMap = new Map<string, number>();
+  for (const transaction of previousTransactions as TransactionRecord[]) {
+    if (transaction.kind === "EXPENSE") {
+      previousCategoryMap.set(
+        transaction.category,
+        (previousCategoryMap.get(transaction.category) ?? 0) +
+          transaction.amount,
+      );
+    }
+  }
+
+  const categoryNames = new Set([
+    ...currentCategoryMap.keys(),
+    ...previousCategoryMap.keys(),
+  ]);
+
+  const categorySavings = [...categoryNames]
+    .map((category) => {
+      const currentAmount = currentCategoryMap.get(category) ?? 0;
+      const previousAmount = previousCategoryMap.get(category) ?? 0;
+      const rate =
+        previousAmount > 0
+          ? Math.round(
+              ((previousAmount - currentAmount) / previousAmount) * 1000,
+            ) / 10
+          : null;
+
+      return {
+        category,
+        currentAmount,
+        previousAmount,
+        rate,
+      };
+    })
+    .sort((left, right) => right.currentAmount - left.currentAmount);
+
+  return {
+    monthKey,
+    previousMonthKey,
+    totalIncome,
+    totalExpense,
+    totalSavings,
+    savingsGoal,
+    goalProgress:
+      savingsGoal > 0
+        ? Math.min(100, Math.round((totalSavings / savingsGoal) * 1000) / 10)
+        : null,
+    currentMonth: {
+      income: currentIncome,
+      expense: currentExpense,
+      balance: currentIncome - currentExpense,
+      savingsRate:
+        currentIncome > 0
+          ? Math.round(
+              ((currentIncome - currentExpense) / currentIncome) * 1000,
+            ) / 10
+          : null,
+    },
+    categorySavings,
+  };
+}
+
 app.set("view engine", "ejs");
 app.set("views", "./views");
 app.use(express.json({ limit: "2mb" }));
@@ -422,16 +663,34 @@ app.use(express.urlencoded({ extended: true }));
 
 app.get("/", async (req, res) => {
   try {
-    const monthKey = parseMonthKey(String(req.query.month ?? ""));
+    const monthKey = toIsoMonth(new Date());
     const year = Number.parseInt(monthKey.slice(0, 4), 10);
 
-    const [monthSummary, yearlyGraph, transactions, splitSessions] =
-      await Promise.all([
-        buildMonthSummary(monthKey),
-        getYearlyGraphData(year),
-        fetchTransactions(),
-        prisma.splitSettlement.findMany({ orderBy: { createdAt: "desc" } }),
-      ]);
+    const [
+      monthSummary,
+      yearlyGraph,
+      transactions,
+      splitSessions,
+      savings,
+      categories,
+    ] = await Promise.all([
+      buildMonthSummary(monthKey),
+      getYearlyGraphData(year),
+      fetchTransactions(monthKey),
+      prisma.splitSettlement.findMany({
+        where: {
+          createdAt: {
+            gte: startOfMonthUtc(monthKey),
+            lt: endOfMonthUtc(monthKey),
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      buildSavingsAnalytics(monthKey),
+      prisma.category.findMany({
+        orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+      }),
+    ]);
 
     res.render("index", {
       initialData: {
@@ -443,10 +702,8 @@ app.get("/", async (req, res) => {
         splitSessions: (splitSessions as SplitSettlementRecord[]).map(
           (item) => ({
             ...item,
-            participants: JSON.parse(item.participantsText) as Array<{
-              name: string;
-              paidAmount: number;
-            }>,
+            participants: JSON.parse(item.participantsText) as string[],
+            payments: JSON.parse(item.contributionsText) as SplitPayment[],
             result: JSON.parse(item.resultText) as Array<{
               from: string;
               to: string;
@@ -454,6 +711,8 @@ app.get("/", async (req, res) => {
             }>,
           }),
         ),
+        savings,
+        categories,
       },
       enums: {
         transactionKinds,
@@ -492,28 +751,8 @@ app.post("/api/transactions", async (req, res) => {
 
     const transaction = await prisma.transaction.create({
       data: {
-        kind: parseEnumValue(req.body.kind, transactionKinds, "EXPENSE"),
-        amount: clampInt(req.body.amount),
+        ...buildTransactionData(req.body),
         occurredAt,
-        category: String(req.body.category || "未分類"),
-        paymentMethod: parseEnumValue(
-          req.body.paymentMethod,
-          paymentMethods,
-          "OTHER",
-        ),
-        satisfaction: parseEnumValue(
-          req.body.satisfaction,
-          satisfactionLevels,
-          "NORMAL",
-        ),
-        spendingStyle: parseEnumValue(
-          req.body.spendingStyle,
-          spendingStyles,
-          "CONSUMPTION",
-        ),
-        memo: String(req.body.memo || "").trim() || null,
-        receiptImageUrl: String(req.body.receiptImageUrl || "").trim() || null,
-        receiptText: String(req.body.receiptText || "").trim() || null,
       },
     });
 
@@ -521,6 +760,42 @@ app.post("/api/transactions", async (req, res) => {
   } catch (error) {
     console.error("Transaction create failed:", error);
     res.status(500).json({ message: "取引の保存に失敗しました。" });
+  }
+});
+
+app.put("/api/transactions/:id", async (req, res) => {
+  try {
+    const id = clampInt(req.params.id);
+    const occurredAt = parseDateInput(req.body.occurredAt);
+
+    if (!occurredAt) {
+      res.status(400).json({ message: "日付を入力してください。" });
+      return;
+    }
+
+    const transaction = await prisma.transaction.update({
+      where: { id },
+      data: {
+        ...buildTransactionData(req.body),
+        occurredAt,
+      },
+    });
+
+    res.json({ transaction: transactionToView(transaction) });
+  } catch (error) {
+    console.error("Transaction update failed:", error);
+    res.status(500).json({ message: "取引の更新に失敗しました。" });
+  }
+});
+
+app.delete("/api/transactions/:id", async (req, res) => {
+  try {
+    const id = clampInt(req.params.id);
+    await prisma.transaction.delete({ where: { id } });
+    res.status(204).end();
+  } catch (error) {
+    console.error("Transaction delete failed:", error);
+    res.status(500).json({ message: "取引の削除に失敗しました。" });
   }
 });
 
@@ -549,6 +824,32 @@ app.get("/api/analytics/monthly", async (req, res) => {
   }
 });
 
+app.get("/api/analytics/savings", async (req, res) => {
+  try {
+    const monthKey = parseMonthKey(String(req.query.month ?? ""));
+    const savings = await buildSavingsAnalytics(monthKey);
+    res.json(savings);
+  } catch (error) {
+    console.error("Savings analytics failed:", error);
+    res.status(500).json({ message: "貯蓄分析の取得に失敗しました。" });
+  }
+});
+
+app.put("/api/settings/savings-goal", async (req, res) => {
+  try {
+    const amount = Math.max(0, clampInt(req.body.amount, 0));
+    await prisma.appSetting.upsert({
+      where: { key: "savingsGoalAmount" },
+      update: { value: String(amount) },
+      create: { key: "savingsGoalAmount", value: String(amount) },
+    });
+    res.json({ savingsGoal: amount });
+  } catch (error) {
+    console.error("Savings goal update failed:", error);
+    res.status(500).json({ message: "目標額の保存に失敗しました。" });
+  }
+});
+
 app.get("/api/calendar", async (req, res) => {
   try {
     const monthKey = parseMonthKey(String(req.query.month ?? ""));
@@ -566,16 +867,22 @@ app.get("/api/calendar", async (req, res) => {
 
 app.get("/api/split-sessions", async (req, res) => {
   try {
+    const monthKey = parseMonthKey(String(req.query.month ?? ""));
     const sessions = (await prisma.splitSettlement.findMany({
+      where: {
+        createdAt: {
+          gte: startOfMonthUtc(monthKey),
+          lt: endOfMonthUtc(monthKey),
+        },
+      },
       orderBy: { createdAt: "desc" },
     })) as SplitSettlementRecord[];
     res.json({
+      monthKey,
       items: sessions.map((item) => ({
         ...item,
-        participants: JSON.parse(item.participantsText) as Array<{
-          name: string;
-          paidAmount: number;
-        }>,
+        participants: JSON.parse(item.participantsText) as string[],
+        payments: JSON.parse(item.contributionsText) as SplitPayment[],
         result: JSON.parse(item.resultText),
       })),
     });
@@ -587,36 +894,27 @@ app.get("/api/split-sessions", async (req, res) => {
 
 app.post("/api/split-sessions", async (req, res) => {
   try {
-    const totalAmount = clampInt(req.body.totalAmount);
-    const title = String(req.body.title || "割り勘").trim() || "割り勘";
-    const participants = Array.isArray(req.body.participants)
-      ? req.body.participants
-      : JSON.parse(String(req.body.participants || "[]"));
+    const parsed = parseSplitPayload(req.body);
 
-    const normalizedParticipants = participants
-      .map((participant: { name?: string; paidAmount?: string | number }) => ({
-        name: String(participant.name || "").trim(),
-        paidAmount: clampInt(participant.paidAmount),
-      }))
-      .filter(
-        (participant: { name: string; paidAmount: number }) => participant.name,
-      );
-
-    if (normalizedParticipants.length === 0) {
-      res.status(400).json({ message: "参加者を1人以上入力してください。" });
+    if (!parsed) {
+      res.status(400).json({
+        message:
+          "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
+      });
       return;
     }
 
     const result = calculateSplitSettlement(
-      totalAmount,
-      normalizedParticipants,
+      parsed.participants,
+      parsed.payments,
     );
+
     const session = await prisma.splitSettlement.create({
       data: {
-        title,
-        totalAmount,
-        participantsText: JSON.stringify(normalizedParticipants),
-        contributionsText: JSON.stringify(normalizedParticipants),
+        title: parsed.title,
+        totalAmount: result.totalAmount,
+        participantsText: JSON.stringify(parsed.participants),
+        contributionsText: JSON.stringify(parsed.payments),
         resultText: JSON.stringify(result.transfers),
       },
     });
@@ -624,7 +922,8 @@ app.post("/api/split-sessions", async (req, res) => {
     res.status(201).json({
       session: {
         ...session,
-        participants: normalizedParticipants,
+        participants: parsed.participants,
+        payments: parsed.payments,
         result: result.transfers,
       },
     });
@@ -634,9 +933,153 @@ app.post("/api/split-sessions", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`サーバーが動いたぞ！ http://localhost:${PORT}`);
+app.put("/api/split-sessions/:id", async (req, res) => {
+  try {
+    const id = clampInt(req.params.id);
+    const parsed = parseSplitPayload(req.body);
+
+    if (!parsed) {
+      res.status(400).json({
+        message:
+          "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
+      });
+      return;
+    }
+
+    const result = calculateSplitSettlement(
+      parsed.participants,
+      parsed.payments,
+    );
+
+    const session = await prisma.splitSettlement.update({
+      where: { id },
+      data: {
+        title: parsed.title,
+        totalAmount: result.totalAmount,
+        participantsText: JSON.stringify(parsed.participants),
+        contributionsText: JSON.stringify(parsed.payments),
+        resultText: JSON.stringify(result.transfers),
+      },
+    });
+
+    res.json({
+      session: {
+        ...session,
+        participants: parsed.participants,
+        payments: parsed.payments,
+        result: result.transfers,
+      },
+    });
+  } catch (error) {
+    console.error("Split session update failed:", error);
+    res.status(500).json({ message: "割り勘記録の更新に失敗しました。" });
+  }
 });
+
+app.delete("/api/split-sessions/:id", async (req, res) => {
+  try {
+    const id = clampInt(req.params.id);
+    await prisma.splitSettlement.delete({ where: { id } });
+    res.status(204).end();
+  } catch (error) {
+    console.error("Split session delete failed:", error);
+    res.status(500).json({ message: "割り勘記録の削除に失敗しました。" });
+  }
+});
+
+app.get("/api/categories", async (req, res) => {
+  try {
+    const categories = await prisma.category.findMany({
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    });
+    res.json({ items: categories });
+  } catch (error) {
+    console.error("Category list failed:", error);
+    res.status(500).json({ message: "カテゴリー一覧の取得に失敗しました。" });
+  }
+});
+
+app.post("/api/categories", async (req, res) => {
+  try {
+    const name = String(req.body.name || "").trim();
+
+    if (!name) {
+      res.status(400).json({ message: "カテゴリー名を入力してください。" });
+      return;
+    }
+
+    const maxOrder = await prisma.category.aggregate({
+      _max: { sortOrder: true },
+    });
+
+    const category = await prisma.category.create({
+      data: { name, sortOrder: (maxOrder._max.sortOrder ?? -1) + 1 },
+    });
+
+    res.status(201).json({ category });
+  } catch (error) {
+    console.error("Category create failed:", error);
+    res.status(500).json({ message: "カテゴリーの追加に失敗しました。" });
+  }
+});
+
+app.put("/api/categories/:id", async (req, res) => {
+  try {
+    const id = clampInt(req.params.id);
+    const name = String(req.body.name || "").trim();
+
+    if (!name) {
+      res.status(400).json({ message: "カテゴリー名を入力してください。" });
+      return;
+    }
+
+    const category = await prisma.category.update({
+      where: { id },
+      data: { name },
+    });
+
+    res.json({ category });
+  } catch (error) {
+    console.error("Category update failed:", error);
+    res.status(500).json({ message: "カテゴリーの更新に失敗しました。" });
+  }
+});
+
+app.delete("/api/categories/:id", async (req, res) => {
+  try {
+    const id = clampInt(req.params.id);
+    await prisma.category.delete({ where: { id } });
+    res.status(204).end();
+  } catch (error) {
+    console.error("Category delete failed:", error);
+    res.status(500).json({ message: "カテゴリーの削除に失敗しました。" });
+  }
+});
+
+async function ensureDefaultCategories() {
+  const count = await prisma.category.count();
+
+  if (count === 0) {
+    const defaults = ["食費", "生活費", "趣味", "交通費"];
+    await prisma.category.createMany({
+      data: defaults.map((name, index) => ({ name, sortOrder: index })),
+    });
+  }
+}
+
+async function start() {
+  try {
+    await ensureDefaultCategories();
+  } catch (error) {
+    console.error("Category seed failed:", error);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`サーバーが動いたぞ！ http://localhost:${PORT}`);
+  });
+}
+
+start();
 
 async function shutdown() {
   await prisma.$disconnect();
