@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ログイン | MoneyPilot</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --panel: rgba(255, 255, 255, 0.9);
+        --text: #132238;
+        --muted: #667085;
+        --accent: #0f4c5c;
+        --danger: #dc2626;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(
+            circle at top left,
+            rgba(15, 76, 92, 0.18),
+            transparent 30%
+          ),
+          radial-gradient(
+            circle at top right,
+            rgba(217, 119, 6, 0.14),
+            transparent 26%
+          ),
+          linear-gradient(180deg, #fbf8f3 0%, #f4efe7 100%);
+      }
+      .card {
+        width: min(420px, calc(100% - 32px));
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.75);
+        border-radius: 24px;
+        box-shadow: 0 20px 60px rgba(19, 34, 56, 0.14);
+        padding: 32px;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 1.6rem;
+      }
+      p.hint {
+        margin: 0 0 22px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.6;
+      }
+      .tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 20px;
+        background: rgba(19, 34, 56, 0.06);
+        border-radius: 999px;
+        padding: 4px;
+      }
+      .tabs button {
+        flex: 1;
+        border: 0;
+        background: transparent;
+        padding: 10px;
+        border-radius: 999px;
+        font: inherit;
+        font-weight: 700;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .tabs button.active {
+        background: var(--accent);
+        color: #fff;
+      }
+      form {
+        display: none;
+        flex-direction: column;
+        gap: 12px;
+      }
+      form.active {
+        display: flex;
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .field input {
+        border: 1px solid rgba(19, 34, 56, 0.16);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font: inherit;
+        background: #fff;
+        color: var(--text);
+      }
+      .field input[data-pin] {
+        letter-spacing: 0.4em;
+        text-align: center;
+        font-size: 1.4rem;
+      }
+      button.submit {
+        border: 0;
+        border-radius: 999px;
+        padding: 13px 16px;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        margin-top: 6px;
+      }
+      button.secondary {
+        border: 1px solid rgba(15, 76, 92, 0.3);
+        border-radius: 999px;
+        padding: 12px 16px;
+        background: transparent;
+        color: var(--accent);
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .error {
+        color: var(--danger);
+        font-size: 0.88rem;
+        min-height: 1.2em;
+      }
+      .divider {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 0.8rem;
+        margin: 18px 0;
+      }
+      .divider::before,
+      .divider::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: rgba(19, 34, 56, 0.12);
+      }
+      .switch-user {
+        text-align: center;
+        margin-top: 10px;
+        font-size: 0.85rem;
+      }
+      .switch-user a {
+        color: var(--accent);
+        cursor: pointer;
+        text-decoration: underline;
+      }
+      .biometric-block {
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .biometric-block.visible {
+        display: flex;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>MoneyPilot</h1>
+      <p class="hint">
+        家計簿はユーザーごとに保存されます。ログインして続けましょう。
+      </p>
+
+      <div class="biometric-block" id="biometricBlock">
+        <button type="button" class="submit" id="biometricLoginBtn">
+          🔓 Face ID / 指紋でログイン（<span id="biometricUserLabel"></span>）
+        </button>
+        <div class="switch-user">
+          <a id="switchAwayFromBiometric">別のログイン方法を使う</a>
+        </div>
+        <div class="divider">または</div>
+      </div>
+
+      <div id="mainAuthBlock">
+        <div class="tabs">
+          <button
+            type="button"
+            class="tab-toggle active"
+            data-target="loginForm"
+          >
+            ログイン
+          </button>
+          <button type="button" class="tab-toggle" data-target="registerForm">
+            新規登録
+          </button>
+          <button type="button" class="tab-toggle" data-target="pinForm">
+            PIN
+          </button>
+        </div>
+
+        <div class="error" id="authError"></div>
+
+        <form id="loginForm" class="active">
+          <div class="field">
+            <label for="loginUsername">ユーザー名</label>
+            <input
+              id="loginUsername"
+              name="username"
+              autocomplete="username"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="loginPassword">パスワード</label>
+            <input
+              id="loginPassword"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+          <button type="submit" class="submit">ログイン</button>
+        </form>
+
+        <form id="registerForm">
+          <div class="field">
+            <label for="registerUsername"
+              >ユーザー名（半角英数字、3〜32文字）</label
+            >
+            <input
+              id="registerUsername"
+              name="username"
+              autocomplete="username"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="registerPassword">パスワード（8文字以上）</label>
+            <input
+              id="registerPassword"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              required
+            />
+          </div>
+          <button type="submit" class="submit">登録して始める</button>
+        </form>
+
+        <form id="pinForm">
+          <div class="field">
+            <label for="pinUsername">ユーザー名</label>
+            <input
+              id="pinUsername"
+              name="username"
+              autocomplete="username"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="pinCode">PIN（4〜8桁）</label>
+            <input
+              id="pinCode"
+              name="pin"
+              type="password"
+              inputmode="numeric"
+              pattern="\d*"
+              maxlength="8"
+              data-pin
+              required
+            />
+          </div>
+          <button type="submit" class="submit">PINでログイン</button>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const authError = document.getElementById("authError");
+      const forms = document.querySelectorAll("#mainAuthBlock form");
+      const tabButtons = document.querySelectorAll(".tab-toggle");
+      const mainAuthBlock = document.getElementById("mainAuthBlock");
+      const biometricBlock = document.getElementById("biometricBlock");
+
+      tabButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          tabButtons.forEach((b) => b.classList.remove("active"));
+          forms.forEach((f) => f.classList.remove("active"));
+          button.classList.add("active");
+          document
+            .getElementById(button.dataset.target)
+            .classList.add("active");
+          authError.textContent = "";
+        });
+      });
+
+      function showError(message) {
+        authError.textContent = message;
+      }
+
+      function bufferToBase64Url(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let str = "";
+        for (const b of bytes) str += String.fromCharCode(b);
+        return btoa(str)
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+      }
+
+      function base64UrlToBuffer(value) {
+        const padded =
+          value.replace(/-/g, "+").replace(/_/g, "/") +
+          "===".slice((value.length + 3) % 4);
+        const str = atob(padded);
+        const bytes = new Uint8Array(str.length);
+        for (let i = 0; i < str.length; i += 1) bytes[i] = str.charCodeAt(i);
+        return bytes;
+      }
+
+      async function submitJson(url, body) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(body),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok)
+          throw new Error(data.message || "エラーが発生しました。");
+        return data;
+      }
+
+      document
+        .getElementById("loginForm")
+        .addEventListener("submit", async (event) => {
+          event.preventDefault();
+          showError("");
+          const username = document
+            .getElementById("loginUsername")
+            .value.trim();
+          const password = document.getElementById("loginPassword").value;
+          try {
+            await submitJson("/api/auth/login", { username, password });
+            localStorage.setItem("mp_last_user", username);
+            window.location.href = "/";
+          } catch (error) {
+            showError(error.message);
+          }
+        });
+
+      document
+        .getElementById("registerForm")
+        .addEventListener("submit", async (event) => {
+          event.preventDefault();
+          showError("");
+          const username = document
+            .getElementById("registerUsername")
+            .value.trim();
+          const password = document.getElementById("registerPassword").value;
+          try {
+            await submitJson("/api/auth/register", { username, password });
+            localStorage.setItem("mp_last_user", username);
+            window.location.href = "/";
+          } catch (error) {
+            showError(error.message);
+          }
+        });
+
+      document
+        .getElementById("pinForm")
+        .addEventListener("submit", async (event) => {
+          event.preventDefault();
+          showError("");
+          const username = document.getElementById("pinUsername").value.trim();
+          const pin = document.getElementById("pinCode").value;
+          try {
+            await submitJson("/api/auth/login-pin", { username, pin });
+            localStorage.setItem("mp_last_user", username);
+            window.location.href = "/";
+          } catch (error) {
+            showError(error.message);
+          }
+        });
+
+      // ---------- Face ID / 指紋での再ログイン（この端末で以前登録した場合のみ表示） ----------
+      (function setupBiometric() {
+        const savedUser = localStorage.getItem("mp_last_user");
+        const savedCredentialId = localStorage.getItem(
+          "mp_webauthn_credential_id",
+        );
+        if (!savedUser || !savedCredentialId || !window.PublicKeyCredential)
+          return;
+
+        document.getElementById("biometricUserLabel").textContent = savedUser;
+        biometricBlock.classList.add("visible");
+        mainAuthBlock.style.display = "none";
+
+        document
+          .getElementById("switchAwayFromBiometric")
+          .addEventListener("click", () => {
+            biometricBlock.classList.remove("visible");
+            mainAuthBlock.style.display = "block";
+            document.getElementById("loginUsername").value = savedUser;
+          });
+
+        document
+          .getElementById("biometricLoginBtn")
+          .addEventListener("click", async () => {
+            showError("");
+            try {
+              const { challenge } = await fetch(
+                "/api/auth/webauthn/challenge",
+              ).then((r) => r.json());
+              await navigator.credentials.get({
+                publicKey: {
+                  challenge: base64UrlToBuffer(challenge),
+                  allowCredentials: [
+                    {
+                      id: base64UrlToBuffer(savedCredentialId),
+                      type: "public-key",
+                    },
+                  ],
+                  userVerification: "required",
+                  timeout: 60000,
+                },
+              });
+              // ブラウザの生体認証プロンプトを通過したら、端末側のログイン用cookieでログインする
+              const response = await fetch("/api/auth/webauthn/login", {
+                method: "POST",
+                credentials: "include",
+              });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok)
+                throw new Error(
+                  data.message || "生体認証ログインに失敗しました。",
+                );
+              window.location.href = "/";
+            } catch (error) {
+              showError(
+                "生体認証でのログインに失敗しました。パスワードでログインしてください。",
+              );
+              biometricBlock.classList.remove("visible");
+              mainAuthBlock.style.display = "block";
+            }
+          });
+      })();
+    </script>
+  </body>
+</html>

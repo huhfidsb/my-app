@@ -5,9 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "tsx index.ts",
-    "dev": "tsx index.ts",
-    "db:push": "prisma db push",
-    "db:generate": "prisma generate"
+    "dev": "tsx index.ts"
   },
   "keywords": [],
   "author": "",
@@ -17,12 +15,9 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.0.0",
     "@types/pg": "^8.20.0",
-    "prisma": "^7.8.0",
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
     "dotenv": "^17.4.2",
     "ejs": "^6.0.1",
     "express": "^5.2.1",

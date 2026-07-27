@@ -19,24 +19,45 @@
 
         * { box-sizing: border-box; }
 
-        body {
+        html, body {
             margin: 0;
+            height: 100%;
+            overflow: hidden; /* ページ全体はスクロールしない。固定レイアウトにする */
+        }
+
+        body {
             font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
             color: var(--text);
             background:
                 radial-gradient(circle at top left, rgba(15, 76, 92, 0.18), transparent 30%),
                 radial-gradient(circle at top right, rgba(217, 119, 6, 0.14), transparent 26%),
                 linear-gradient(180deg, #fbf8f3 0%, #f4efe7 100%);
-            min-height: 100vh;
         }
 
-        .shell { width: min(1280px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 48px; }
-        .hero, .grid, .pie-row, .pie-compare { display: grid; }
-        .hero { grid-template-columns: 1.6fr 0.9fr; gap: 20px; margin-bottom: 20px; }
-        .grid { grid-template-columns: 1.05fr 0.95fr; gap: 20px; align-items: start; }
+        /* 画面サイズが変わってもレイアウトが崩れないよう、幅を固定する */
+        .shell {
+            width: 1280px;
+            min-width: 1280px;
+            margin: 0 auto;
+            padding: 18px 0 16px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .hero, .pie-compare { display: grid; }
+        .hero { grid-template-columns: 1.6fr 0.9fr; gap: 16px; margin-bottom: 14px; flex: 0 0 auto; }
+        .grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 20px; align-items: start; }
         .pie-compare { grid-template-columns: 1fr 1fr; gap: 20px; }
-        .pie-row { grid-template-columns: 220px 1fr; gap: 16px; align-items: center; }
-        .stack { display: grid; gap: 20px; }
+        .pie-row { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+        .stack { display: grid; gap: 16px; }
+
+        /* タブの中身の表示エリア：ここだけ高さを確保し、内部で必要な要素だけスクロールさせる */
+        .tab-content-area { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+        .tab-panel { height: 100%; }
+        .tab-panel .grid { height: 100%; }
+        .tab-panel .stack > .panel { overflow: hidden; }
 
         .hero-card,
         .panel {
@@ -135,8 +156,13 @@
             padding: 12px 22px; border-radius: 999px; font-weight: 700; cursor: pointer;
         }
         .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .tab-content-area { position: relative; }
         .tab-panel { display: none; }
-        .tab-panel.active { display: block; }
+        .tab-panel.active { display: block; overflow-y: auto; height: 100%; padding-right: 4px; }
+        /* 「収支記録」タブは全体をスクロールさせず、記録一覧の枠内だけをスクロールさせる */
+        #tab-record.active { overflow: hidden; }
+        #tab-record .stack:last-child .panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+        #transactionList { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
 
         /* 支出・収入 ワンタッチ切り替え */
         .kind-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -169,10 +195,13 @@
             border: 6px solid transparent; border-top-color: rgba(19, 34, 56, 0.92);
         }
         canvas { width: 100%; height: 240px; display: block; }
+        .chart-box-large canvas { height: 340px; }
         .pie { width: 220px; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(#cbd5e1 0deg 360deg); position: relative; }
         .pie::after { content: ""; position: absolute; inset: 28px; border-radius: 50%; background: #fff; }
 
         .calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+        .calendar-large { gap: 10px; }
+        .calendar-large .day, .calendar-large .weekday { min-height: 96px; }
         .weekday, .day { min-height: 72px; padding: 10px; border-radius: 14px; }
         .weekday { min-height: auto; text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); }
         .day .date { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 10px; }
@@ -202,23 +231,119 @@
         .progress-bar { width: 100%; height: 14px; border-radius: 999px; background: rgba(19, 34, 56, 0.08); overflow: hidden; }
         .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #0f4c5c, #1d4ed8); border-radius: 999px; transition: width 0.3s ease; }
 
-        @media (max-width: 1024px) {
-            .hero, .grid, .pie-row, .pie-compare { grid-template-columns: 1fr; }
-            .hero-grid, .form-grid { grid-template-columns: 1fr; }
-            .span-2 { grid-column: auto; }
-            .month-picker-bar .month-nav { width: 100%; }
-        }
+        /* 画面幅にかかわらずレイアウトを固定しています（意図的にレスポンシブ対応を外しています）。
+           画面が1280pxより狭い端末では横スクロールが発生します。 */
 
-        @media (max-width: 640px) {
-            .shell { width: min(100% - 18px, 100%); padding-top: 12px; }
-            .hero-card, .panel, .hero-side { padding: 16px; }
-            .calendar { gap: 6px; }
-            .weekday, .day { min-height: 62px; padding: 8px; }
+        /* ---------- ハンバーガーメニュー・設定パネル ---------- */
+        .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex: 0 0 auto; }
+        .hamburger-btn {
+            width: 44px; height: 44px; border-radius: 14px; padding: 0; background: rgba(255,255,255,0.85);
+            border: 1px solid rgba(19,34,56,0.12); color: var(--accent); font-size: 18px;
+            display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px;
         }
+        .hamburger-btn span { display: block; width: 20px; height: 2px; background: var(--accent); border-radius: 2px; }
+        .topbar .app-title { font-weight: 800; font-size: 1.05rem; color: var(--accent); }
+        .topbar .current-user { margin-left: auto; color: var(--muted); font-size: 0.88rem; }
+
+        .settings-backdrop {
+            position: fixed; inset: 0; background: rgba(19,34,56,0.35); z-index: 40;
+            opacity: 0; pointer-events: none; transition: opacity 0.15s ease;
+        }
+        .settings-backdrop.open { opacity: 1; pointer-events: auto; }
+
+        .settings-panel {
+            position: fixed; top: 0; left: 0; height: 100vh; width: 360px;
+            background: #fff; box-shadow: 0 0 40px rgba(19,34,56,0.25); z-index: 41;
+            transform: translateX(-100%); transition: transform 0.18s ease;
+            padding: 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 22px;
+        }
+        .settings-panel.open { transform: translateX(0); }
+        .settings-panel h2 { font-size: 1.2rem; }
+        .settings-close { align-self: flex-end; background: rgba(19,34,56,0.06); color: var(--muted); width: 32px; height: 32px; border-radius: 50%; padding: 0; }
+        .settings-section { border-top: 1px dashed rgba(19,34,56,0.12); padding-top: 16px; }
+        .settings-section:first-of-type { border-top: 0; padding-top: 0; }
+        .settings-section h3 { margin-bottom: 8px; }
+        .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+        .switch { position: relative; width: 44px; height: 26px; flex: 0 0 auto; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .switch .track { position: absolute; inset: 0; background: rgba(19,34,56,0.18); border-radius: 999px; cursor: pointer; transition: background 0.15s ease; }
+        .switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: #fff; border-radius: 50%; transition: transform 0.15s ease; }
+        .switch input:checked + .track { background: var(--accent); }
+        .switch input:checked + .track::after { transform: translateX(18px); }
+        .device-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(19,34,56,0.04); margin-bottom: 8px; font-size: 0.86rem; }
+        .settings-note { color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
     </style>
 </head>
 <body>
+    <div class="settings-backdrop" id="settingsBackdrop"></div>
+    <aside class="settings-panel" id="settingsPanel">
+        <button type="button" class="settings-close" id="settingsCloseBtn">×</button>
+        <h2>設定</h2>
+
+        <div class="settings-section">
+            <h3>アカウント</h3>
+            <p class="muted">ログイン中: <strong><%= initialData.user.username %></strong></p>
+            <div class="actions">
+                <button type="button" class="secondary btn-sm" id="logoutBtn">ログアウト</button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>表示する機能</h3>
+            <div class="settings-row">
+                <span>「分析」タブを表示する</span>
+                <label class="switch">
+                    <input type="checkbox" id="analyticsEnabledToggle" <%= initialData.user.analyticsEnabled ? "checked" : "" %>>
+                    <span class="track"></span>
+                </label>
+            </div>
+            <p class="settings-note">オフにすると、円グラフや月次分析を含む「分析」タブを一覧から隠します（データは削除されません）。</p>
+        </div>
+
+        <div class="settings-section">
+            <h3>貯蓄の目標額</h3>
+            <div class="field">
+                <label for="settingsSavingsGoal">目標額（不要な場合は空欄でOK）</label>
+                <input type="number" id="settingsSavingsGoal" min="0" placeholder="未設定" value="<%= initialData.user.savingsGoalAmount ?? '' %>">
+            </div>
+            <div class="actions">
+                <button type="button" class="secondary btn-sm" id="saveSettingsGoalBtn">保存する</button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>PINコードでログイン</h3>
+            <p class="settings-note">パスワードの代わりに数字のPINでもログインできるようにします。</p>
+            <div id="pinStatusView"></div>
+            <div class="field" style="margin-top: 8px;">
+                <label for="settingsPinInput">新しいPIN（4〜8桁）</label>
+                <input type="password" id="settingsPinInput" inputmode="numeric" pattern="\d*" maxlength="8" placeholder="例）1234">
+            </div>
+            <div class="actions">
+                <button type="button" class="secondary btn-sm" id="setPinBtn">PINを設定・更新</button>
+                <button type="button" class="danger btn-sm" id="removePinBtn">PINを削除</button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Face ID・指紋でログイン</h3>
+            <p class="settings-note">この端末でWebAuthn（Face ID・指紋・画面ロック等）を使ったログインを許可します。</p>
+            <div id="webauthnDeviceList"></div>
+            <div class="actions">
+                <button type="button" class="secondary btn-sm" id="registerBiometricBtn">この端末を登録する</button>
+            </div>
+        </div>
+    </aside>
+
     <div class="shell">
+        <div class="topbar">
+            <button type="button" class="hamburger-btn" id="openSettingsBtn" title="設定" aria-label="設定を開く">
+                <span></span><span></span><span></span>
+            </button>
+            <div class="app-title">MoneyPilot</div>
+            <div class="current-user"><%= initialData.user.username %> さん</div>
+        </div>
+
         <section class="hero">
             <div class="hero-card">
                 <div class="eyebrow">three-layer finance dashboard</div>
@@ -244,11 +369,12 @@
 
         <div class="tabs" role="tablist">
             <button type="button" class="tab-btn active" data-tab="tab-record">収支記録</button>
-            <button type="button" class="tab-btn" data-tab="tab-analysis">分析</button>
+            <button type="button" class="tab-btn" id="analysisTabBtn" data-tab="tab-analysis" style="<%= initialData.user.analyticsEnabled ? '' : 'display:none;' %>">分析</button>
             <button type="button" class="tab-btn" data-tab="tab-split">割り勘</button>
             <button type="button" class="tab-btn" data-tab="tab-savings">貯蓄管理</button>
         </div>
 
+        <div class="tab-content-area">
         <div id="tab-record" class="tab-panel active">
             <div class="grid">
                 <div class="stack">
@@ -353,67 +479,59 @@
                 <div class="muted">この年月分析タブの年月は、収支記録・割り勘のタブとは独立しています。</div>
             </div>
 
-            <div class="grid">
-                <div class="stack">
-                    <section class="panel">
-                        <h2>選択中の月の収支</h2>
-                        <div class="hero-grid">
-                            <div class="stat"><small>収入</small><strong id="analysisIncome">-</strong></div>
-                            <div class="stat"><small>支出</small><strong id="analysisExpense">-</strong></div>
-                            <div class="stat"><small>収支</small><strong id="analysisBalance">-</strong></div>
-                        </div>
-                    </section>
+            <div class="stack analysis-stack">
+                <section class="panel">
+                    <h2>選択中の月の収支</h2>
+                    <div class="hero-grid">
+                        <div class="stat"><small>収入</small><strong id="analysisIncome">-</strong></div>
+                        <div class="stat"><small>支出</small><strong id="analysisExpense">-</strong></div>
+                        <div class="stat"><small>収支</small><strong id="analysisBalance">-</strong></div>
+                        <div class="stat"><small>平均日次支出</small><strong id="averageDailyExpense">-</strong></div>
+                        <div class="stat"><small>満足度</small><strong id="satisfactionSummary">-</strong></div>
+                        <div class="stat"><small>浪費比率</small><strong id="spendingStyleSummary">-</strong></div>
+                    </div>
+                </section>
 
-                    <section class="panel">
-                        <h2>月次収支グラフ</h2>
-                        <p class="hint">選択中の年月が含まれる年の、収入・支出を月ごとに自動で描画します。青が収入、赤が支出です。棒にカーソルを合わせる（またはタップする）と金額が吹き出しで表示されます。</p>
-                        <div class="chart-box">
-                            <canvas id="monthlyChart"></canvas>
-                            <div class="chart-tooltip" id="chartTooltip" style="display: none;"></div>
-                        </div>
-                        <div class="muted" id="monthlyChartLabel"></div>
-                    </section>
+                <section class="panel">
+                    <h2>月次収支グラフ</h2>
+                    <p class="hint">選択中の年月が含まれる年の、収入・支出を月ごとに自動で描画します。青が収入、赤が支出です。棒にカーソルを合わせる（またはタップする）と金額が吹き出しで表示されます。</p>
+                    <div class="chart-box chart-box-large">
+                        <canvas id="monthlyChart"></canvas>
+                        <div class="chart-tooltip" id="chartTooltip" style="display: none;"></div>
+                    </div>
+                    <div class="muted" id="monthlyChartLabel"></div>
+                </section>
 
-                    <section class="panel">
-                        <h2>カレンダー</h2>
-                        <p class="hint">選択中の月を表示しています。日ごとの支出は赤、収入は青で色分けし、土曜日は水色、日曜と祝日は紅色で強調します。日付をクリックすると、その日の記録一覧が下に表示されます。</p>
-                        <div class="calendar" id="calendar"></div>
+                <section class="panel">
+                    <h2>カレンダー</h2>
+                    <p class="hint">選択中の月を表示しています。日ごとの支出は赤、収入は青で色分けし、土曜日は水色、日曜と祝日は紅色で強調します。日付をクリックすると、その日の記録一覧が下に表示されます。</p>
+                    <div class="calendar calendar-large" id="calendar"></div>
 
-                        <div class="day-detail" id="dayDetail" style="margin-top: 16px; display: none;">
-                            <h3 id="dayDetailTitle" style="margin-bottom: 10px;"></h3>
-                            <div class="list" id="dayDetailList"></div>
-                        </div>
-                    </section>
-                </div>
+                    <div class="day-detail" id="dayDetail" style="margin-top: 16px; display: none;">
+                        <h3 id="dayDetailTitle" style="margin-bottom: 10px;"></h3>
+                        <div class="list" id="dayDetailList"></div>
+                    </div>
+                </section>
 
-                <div class="stack">
-                    <section class="panel">
-                        <h2>月次分析</h2>
-
-                        <div class="hero-grid">
-                            <div class="stat"><small>平均日次支出</small><strong id="averageDailyExpense">-</strong></div>
-                            <div class="stat"><small>満足度</small><strong id="satisfactionSummary">-</strong></div>
-                            <div class="stat"><small>浪費比率</small><strong id="spendingStyleSummary">-</strong></div>
-                        </div>
-
-                        <div class="pie-compare" style="margin-top: 18px;">
-                            <div>
-                                <h3>支出の内訳</h3>
-                                <div class="pie-row">
-                                    <div class="pie" id="expenseCategoryPie"></div>
-                                    <div class="legend" id="expenseCategoryLegend"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <h3>収入の内訳</h3>
-                                <div class="pie-row">
-                                    <div class="pie" id="incomeCategoryPie"></div>
-                                    <div class="legend" id="incomeCategoryLegend"></div>
-                                </div>
+                <section class="panel">
+                    <h2>内訳（円グラフ）</h2>
+                    <div class="pie-compare">
+                        <div>
+                            <h3>支出の内訳</h3>
+                            <div class="pie-row">
+                                <div class="pie" id="expenseCategoryPie"></div>
+                                <div class="legend" id="expenseCategoryLegend"></div>
                             </div>
                         </div>
-                    </section>
-                </div>
+                        <div>
+                            <h3>収入の内訳</h3>
+                            <div class="pie-row">
+                                <div class="pie" id="incomeCategoryPie"></div>
+                                <div class="legend" id="incomeCategoryLegend"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
 
@@ -545,6 +663,7 @@
                     </section>
                 </div>
             </div>
+        </div>
         </div>
     </div>
 
@@ -1396,8 +1515,11 @@
         wireMonthNav(elements.savingsMonth, "savingsPrevMonth", "savingsNextMonth", refreshSavings);
 
         document.getElementById("saveSavingsGoal").addEventListener("click", async () => {
-            const amount = Number(document.getElementById("savingsGoalInput").value || 0);
-            await api("/api/settings/savings-goal", { method: "PUT", body: JSON.stringify({ amount }) });
+            const raw = document.getElementById("savingsGoalInput").value;
+            const savingsGoalAmount = raw === "" ? null : Math.max(0, Number.parseInt(raw, 10) || 0);
+            await api("/api/settings", { method: "PUT", body: JSON.stringify({ savingsGoalAmount }) });
+            const settingsGoalField = document.getElementById("settingsSavingsGoal");
+            if (settingsGoalField) settingsGoalField.value = savingsGoalAmount ?? "";
             await refreshSavings();
         });
 
@@ -1455,6 +1577,169 @@
         renderMonthlyChart(initialData.yearlyGraph);
         renderSplitSessions(initialData.splitSessions);
         renderSavings(initialData.savings);
+
+        // ---------------- 設定パネル（ハンバーガーメニュー） ----------------
+
+        const settingsBackdrop = document.getElementById("settingsBackdrop");
+        const settingsPanel = document.getElementById("settingsPanel");
+        const analysisTabBtn = document.getElementById("analysisTabBtn");
+
+        function openSettings() {
+            settingsBackdrop.classList.add("open");
+            settingsPanel.classList.add("open");
+            refreshDeviceList();
+            refreshPinStatus();
+        }
+        function closeSettings() {
+            settingsBackdrop.classList.remove("open");
+            settingsPanel.classList.remove("open");
+        }
+
+        document.getElementById("openSettingsBtn").addEventListener("click", openSettings);
+        document.getElementById("settingsCloseBtn").addEventListener("click", closeSettings);
+        settingsBackdrop.addEventListener("click", closeSettings);
+
+        document.getElementById("logoutBtn").addEventListener("click", async () => {
+            await api("/api/auth/logout", { method: "POST" }).catch(() => {});
+            window.location.href = "/login";
+        });
+
+        document.getElementById("analyticsEnabledToggle").addEventListener("change", async (event) => {
+            const enabled = event.target.checked;
+            try {
+                await api("/api/settings", { method: "PUT", body: JSON.stringify({ analyticsEnabled: enabled }) });
+                analysisTabBtn.style.display = enabled ? "" : "none";
+                if (!enabled && analysisTabBtn.classList.contains("active")) {
+                    document.querySelector('.tab-btn[data-tab="tab-record"]').click();
+                }
+            } catch (error) {
+                alert(error.message);
+                event.target.checked = !enabled;
+            }
+        });
+
+        document.getElementById("saveSettingsGoalBtn").addEventListener("click", async () => {
+            const raw = document.getElementById("settingsSavingsGoal").value;
+            const savingsGoalAmount = raw === "" ? null : Math.max(0, Number.parseInt(raw, 10) || 0);
+            try {
+                await api("/api/settings", { method: "PUT", body: JSON.stringify({ savingsGoalAmount }) });
+                document.getElementById("savingsGoalInput").value = savingsGoalAmount ?? "";
+                await refreshAll();
+                alert("目標額を保存しました。");
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+
+        async function refreshPinStatus() {
+            const view = document.getElementById("pinStatusView");
+            view.innerHTML = initialData.user.pinEnabled
+                ? '<p class="muted">現在PINログインは有効です。</p>'
+                : '<p class="muted">現在PINログインは未設定です。</p>';
+        }
+
+        document.getElementById("setPinBtn").addEventListener("click", async () => {
+            const pin = document.getElementById("settingsPinInput").value;
+            if (!/^\d{4,8}$/.test(pin)) {
+                alert("PINは4〜8桁の数字で入力してください。");
+                return;
+            }
+            try {
+                await api("/api/auth/pin", { method: "POST", body: JSON.stringify({ pin }) });
+                initialData.user.pinEnabled = true;
+                document.getElementById("settingsPinInput").value = "";
+                refreshPinStatus();
+                alert("PINを設定しました。");
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+
+        document.getElementById("removePinBtn").addEventListener("click", async () => {
+            try {
+                await api("/api/auth/pin", { method: "DELETE" });
+                initialData.user.pinEnabled = false;
+                refreshPinStatus();
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+
+        function bufferToBase64Url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let str = "";
+            for (const b of bytes) str += String.fromCharCode(b);
+            return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        }
+        function base64UrlToBuffer(value) {
+            const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
+            const str = atob(padded);
+            const bytes = new Uint8Array(str.length);
+            for (let i = 0; i < str.length; i += 1) bytes[i] = str.charCodeAt(i);
+            return bytes;
+        }
+
+        async function refreshDeviceList() {
+            const listEl = document.getElementById("webauthnDeviceList");
+            try {
+                const { items } = await api("/api/auth/webauthn/credentials");
+                listEl.innerHTML = items.length
+                    ? items.map((item) => `
+                        <div class="device-item">
+                            <span>${escapeHtml(item.label || "この端末")}</span>
+                            <button type="button" class="remove-btn" data-device-id="${item.id}" title="削除">×</button>
+                        </div>
+                    `).join("")
+                    : '<p class="muted">登録済みの端末はありません。</p>';
+
+                listEl.querySelectorAll("[data-device-id]").forEach((button) => {
+                    button.addEventListener("click", async () => {
+                        if (!confirm("この端末の生体認証ログインを削除しますか？")) return;
+                        await api(`/api/auth/webauthn/credentials/${button.dataset.deviceId}`, { method: "DELETE" });
+                        localStorage.removeItem("mp_webauthn_credential_id");
+                        refreshDeviceList();
+                    });
+                });
+            } catch (error) {
+                listEl.innerHTML = '<p class="muted">端末一覧を取得できませんでした。</p>';
+            }
+        }
+
+        document.getElementById("registerBiometricBtn").addEventListener("click", async () => {
+            if (!window.PublicKeyCredential) {
+                alert("この端末・ブラウザはFace ID／指紋（WebAuthn）に対応していません。");
+                return;
+            }
+            try {
+                const { challenge } = await api("/api/auth/webauthn/challenge");
+                const credential = await navigator.credentials.create({
+                    publicKey: {
+                        challenge: base64UrlToBuffer(challenge),
+                        rp: { name: "MoneyPilot" },
+                        user: {
+                            id: base64UrlToBuffer(bufferToBase64Url(new TextEncoder().encode(String(initialData.user.username)))),
+                            name: initialData.user.username,
+                            displayName: initialData.user.username,
+                        },
+                        pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
+                        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+                        timeout: 60000,
+                    },
+                });
+
+                const credentialId = credential.id; // 既にbase64url文字列
+                const label = navigator.userAgentData?.platform || navigator.platform || "この端末";
+                await api("/api/auth/webauthn/register", { method: "POST", body: JSON.stringify({ credentialId, label }) });
+
+                localStorage.setItem("mp_last_user", initialData.user.username);
+                localStorage.setItem("mp_webauthn_credential_id", credentialId);
+
+                alert("この端末でFace ID／指紋によるログインを設定しました。");
+                refreshDeviceList();
+            } catch (error) {
+                alert("生体認証の登録に失敗しました：" + error.message);
+            }
+        });
     </script>
 </body>
 </html>

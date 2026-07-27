@@ -37,8 +37,42 @@ enum PaymentMethod {
   OTHER
 }
 
+model User {
+  id                Int      @id @default(autoincrement())
+  username          String   @unique
+  passwordHash      String
+  pinHash           String?
+  pinEnabled        Boolean  @default(false)
+  analyticsEnabled  Boolean  @default(true)
+  savingsGoalAmount Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  transactions        Transaction[]
+  splitSettlements    SplitSettlement[]
+  categories          Category[]
+  webauthnCredentials WebauthnCredential[]
+}
+
+// 「この端末でFace ID / 指紋で解除する」を許可した端末ごとの記録。
+// 実際のログインを許可する秘密（deviceSecret）はサーバー側にのみ保存し、
+// httpOnly cookieとして端末に渡す。credentialIdはブラウザのWebAuthn APIで
+// 生体認証（Face ID・指紋・端末PIN等）のプロンプトを出すためだけに使う。
+model WebauthnCredential {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String   @unique
+  deviceSecret String
+  label        String?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+}
+
 model Transaction {
   id              Int               @id @default(autoincrement())
+  userId          Int
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   kind            TransactionKind
   amount          Int
   occurredAt      DateTime
@@ -51,10 +85,14 @@ model Transaction {
   receiptText     String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+
+  @@index([userId])
 }
 
 model SplitSettlement {
   id                Int      @id @default(autoincrement())
+  userId            Int
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title             String
   totalAmount       Int
   participantsText  String
@@ -62,16 +100,17 @@ model SplitSettlement {
   resultText        String
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-}
 
-model AppSetting {
-  key   String @id
-  value String
+  @@index([userId])
 }
 
 model Category {
   id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }

@@ -3,10 +3,14 @@ services:
     name: my-app
     env: node
     plan: free
-    buildCommand: npm install --include=dev && npm run db:push && npm run db:generate
+    buildCommand: npm install --include=dev
     startCommand: npm start
     envVars:
       - key: PORT
         value: 8888
       - key: DATABASE_URL
-        value: file:./prisma/dev.db
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
