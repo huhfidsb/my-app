@@ -817,7 +817,7 @@ app.get("/api/auth/webauthn/credentials", requireAuthApi, async (req, res) => {
     res.json({
       items: items.map(
         (item: {
-          id: string;
+          id: number;
           label: string | null;
           createdAt: Date;
           lastUsedAt: Date | null;
@@ -914,7 +914,7 @@ app.get("/", requireAuthPage, async (req, res) => {
         transactions,
         splitSessions: splitSessions.map(
           (item: {
-            id: string;
+            id: number;
             participantsText: string;
             contributionsText: string;
             resultText: string;
@@ -1083,7 +1083,7 @@ app.get("/api/split-sessions", requireAuthApi, async (req, res) => {
       monthKey,
       items: sessions.map(
         (item: {
-          id: string;
+          id: number;
           participantsText: string;
           contributionsText: string;
           resultText: string;

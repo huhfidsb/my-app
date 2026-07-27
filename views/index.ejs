@@ -272,6 +272,7 @@
         .switch input:checked + .track::after { transform: translateX(18px); }
         .device-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(19,34,56,0.04); margin-bottom: 8px; font-size: 0.86rem; }
         .settings-note { color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
+        .is-hidden { display: none; }
     </style>
 </head>
 <body>
@@ -369,7 +370,7 @@
 
         <div class="tabs" role="tablist">
             <button type="button" class="tab-btn active" data-tab="tab-record">収支記録</button>
-            <button type="button" class="tab-btn" id="analysisTabBtn" data-tab="tab-analysis" style="<%= initialData.user.analyticsEnabled ? '' : 'display:none;' %>">分析</button>
+            <button type="button" class="tab-btn <%= initialData.user.analyticsEnabled ? '' : 'is-hidden' %>">分析</button>
             <button type="button" class="tab-btn" data-tab="tab-split">割り勘</button>
             <button type="button" class="tab-btn" data-tab="tab-savings">貯蓄管理</button>
         </div>
