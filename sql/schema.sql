@@ -5,14 +5,33 @@
 CREATE TABLE IF NOT EXISTS users (
   id                  SERIAL PRIMARY KEY,
   username            TEXT UNIQUE NOT NULL,
+  email               TEXT UNIQUE NOT NULL,
   password_hash       TEXT NOT NULL,
-  pin_hash            TEXT,
-  pin_enabled         BOOLEAN NOT NULL DEFAULT FALSE,
-  analytics_enabled   BOOLEAN NOT NULL DEFAULT TRUE,
   savings_goal_amount INTEGER,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 旧バージョン（PIN・分析タブ表示切替）からのアップグレード用。存在しない環境でもエラーになりません。
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE users DROP COLUMN IF EXISTS pin_hash;
+ALTER TABLE users DROP COLUMN IF EXISTS pin_enabled;
+ALTER TABLE users DROP COLUMN IF EXISTS analytics_enabled;
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_key ON users(email);
+
+-- メール認証コード（新規登録・パスワード再設定の両方で使用）
+CREATE TABLE IF NOT EXISTS email_verifications (
+  id          SERIAL PRIMARY KEY,
+  email       TEXT NOT NULL,
+  purpose     TEXT NOT NULL, -- 'register' | 'reset'
+  code_hash   TEXT NOT NULL,
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS email_verifications_lookup_idx ON email_verifications(email, purpose, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS webauthn_credentials (
   id                 SERIAL PRIMARY KEY,

@@ -13,10 +13,8 @@ export async function runMigrations(sql: string) {
 export type UserRow = {
   id: number;
   username: string;
+  email: string;
   passwordHash: string;
-  pinHash: string | null;
-  pinEnabled: boolean;
-  analyticsEnabled: boolean;
   savingsGoalAmount: number | null;
   createdAt: Date;
   updatedAt: Date;
@@ -73,10 +71,8 @@ function mapUser(row: any): UserRow {
   return {
     id: row.id,
     username: row.username,
+    email: row.email,
     passwordHash: row.password_hash,
-    pinHash: row.pin_hash,
-    pinEnabled: row.pin_enabled,
-    analyticsEnabled: row.analytics_enabled,
     savingsGoalAmount:
       row.savings_goal_amount === null ? null : Number(row.savings_goal_amount),
     createdAt: row.created_at,
@@ -150,6 +146,13 @@ export async function findUserByUsername(
   return rows[0] ? mapUser(rows[0]) : null;
 }
 
+export async function findUserByEmail(email: string): Promise<UserRow | null> {
+  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [
+    email.toLowerCase(),
+  ]);
+  return rows[0] ? mapUser(rows[0]) : null;
+}
+
 export async function findUserById(id: number): Promise<UserRow | null> {
   const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
   return rows[0] ? mapUser(rows[0]) : null;
@@ -157,46 +160,97 @@ export async function findUserById(id: number): Promise<UserRow | null> {
 
 export async function createUser(
   username: string,
+  email: string,
   passwordHash: string,
 ): Promise<UserRow> {
   const { rows } = await pool.query(
-    "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING *",
-    [username, passwordHash],
+    "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING *",
+    [username, email.toLowerCase(), passwordHash],
   );
   return mapUser(rows[0]);
 }
 
-export async function updateUserPin(
-  userId: number,
-  pinHash: string | null,
-  pinEnabled: boolean,
-) {
+export async function updateUserPassword(userId: number, passwordHash: string) {
   await pool.query(
-    "UPDATE users SET pin_hash = $2, pin_enabled = $3, updated_at = now() WHERE id = $1",
-    [userId, pinHash, pinEnabled],
+    "UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1",
+    [userId, passwordHash],
   );
 }
 
 export async function updateUserSettings(
   userId: number,
-  settings: { analyticsEnabled?: boolean; savingsGoalAmount?: number | null },
+  settings: { savingsGoalAmount?: number | null },
 ) {
-  const fields: string[] = [];
-  const values: unknown[] = [userId];
-
-  if (settings.analyticsEnabled !== undefined) {
-    values.push(settings.analyticsEnabled);
-    fields.push(`analytics_enabled = $${values.length}`);
-  }
-  if (settings.savingsGoalAmount !== undefined) {
-    values.push(settings.savingsGoalAmount);
-    fields.push(`savings_goal_amount = $${values.length}`);
-  }
-  if (fields.length === 0) return;
-
+  if (settings.savingsGoalAmount === undefined) return;
   await pool.query(
-    `UPDATE users SET ${fields.join(", ")}, updated_at = now() WHERE id = $1`,
-    values,
+    "UPDATE users SET savings_goal_amount = $2, updated_at = now() WHERE id = $1",
+    [userId, settings.savingsGoalAmount],
+  );
+}
+
+// ---------- メール認証コード（新規登録・パスワード再設定） ----------
+
+export type EmailVerificationRow = {
+  id: number;
+  email: string;
+  purpose: "register" | "reset";
+  codeHash: string;
+  attempts: number;
+  expiresAt: Date;
+  consumedAt: Date | null;
+  createdAt: Date;
+};
+
+function mapVerification(row: any): EmailVerificationRow {
+  return {
+    id: row.id,
+    email: row.email,
+    purpose: row.purpose,
+    codeHash: row.code_hash,
+    attempts: row.attempts,
+    expiresAt: row.expires_at,
+    consumedAt: row.consumed_at,
+    createdAt: row.created_at,
+  };
+}
+
+export async function createEmailVerification(
+  email: string,
+  purpose: "register" | "reset",
+  codeHash: string,
+  expiresAt: Date,
+): Promise<EmailVerificationRow> {
+  const { rows } = await pool.query(
+    `INSERT INTO email_verifications (email, purpose, code_hash, expires_at)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [email.toLowerCase(), purpose, codeHash, expiresAt],
+  );
+  return mapVerification(rows[0]);
+}
+
+export async function findLatestEmailVerification(
+  email: string,
+  purpose: "register" | "reset",
+): Promise<EmailVerificationRow | null> {
+  const { rows } = await pool.query(
+    `SELECT * FROM email_verifications WHERE email = $1 AND purpose = $2
+     ORDER BY created_at DESC LIMIT 1`,
+    [email.toLowerCase(), purpose],
+  );
+  return rows[0] ? mapVerification(rows[0]) : null;
+}
+
+export async function incrementVerificationAttempts(id: number) {
+  await pool.query(
+    "UPDATE email_verifications SET attempts = attempts + 1 WHERE id = $1",
+    [id],
+  );
+}
+
+export async function consumeEmailVerification(id: number) {
+  await pool.query(
+    "UPDATE email_verifications SET consumed_at = now() WHERE id = $1",
+    [id],
   );
 }
 

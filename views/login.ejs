@@ -78,12 +78,20 @@
         background: var(--accent);
         color: #fff;
       }
-      form {
+      .panel-block {
         display: none;
         flex-direction: column;
         gap: 12px;
       }
-      form.active {
+      .panel-block.active {
+        display: flex;
+      }
+      .step {
+        display: none;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .step.active {
         display: flex;
       }
       .field {
@@ -102,7 +110,7 @@
         background: #fff;
         color: var(--text);
       }
-      .field input[data-pin] {
+      .field input[data-code] {
         letter-spacing: 0.4em;
         text-align: center;
         font-size: 1.4rem;
@@ -118,20 +126,26 @@
         cursor: pointer;
         margin-top: 6px;
       }
-      button.secondary {
-        border: 1px solid rgba(15, 76, 92, 0.3);
-        border-radius: 999px;
-        padding: 12px 16px;
+      button.link-btn {
+        border: 0;
         background: transparent;
         color: var(--accent);
         font: inherit;
-        font-weight: 700;
+        font-size: 0.85rem;
+        text-decoration: underline;
         cursor: pointer;
+        padding: 4px 0;
+        align-self: flex-start;
       }
       .error {
         color: var(--danger);
         font-size: 0.88rem;
         min-height: 1.2em;
+      }
+      .notice {
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1.6;
       }
       .divider {
         display: flex;
@@ -166,6 +180,16 @@
       .biometric-block.visible {
         display: flex;
       }
+      .forgot-link {
+        text-align: right;
+        margin-top: -4px;
+      }
+      .forgot-link a {
+        color: var(--accent);
+        font-size: 0.82rem;
+        cursor: pointer;
+        text-decoration: underline;
+      }
     </style>
   </head>
   <body>
@@ -190,112 +214,209 @@
           <button
             type="button"
             class="tab-toggle active"
-            data-target="loginForm"
+            data-target="loginPanel"
           >
             ログイン
           </button>
-          <button type="button" class="tab-toggle" data-target="registerForm">
+          <button type="button" class="tab-toggle" data-target="registerPanel">
             新規登録
-          </button>
-          <button type="button" class="tab-toggle" data-target="pinForm">
-            PIN
           </button>
         </div>
 
         <div class="error" id="authError"></div>
 
-        <form id="loginForm" class="active">
-          <div class="field">
-            <label for="loginUsername">ユーザー名</label>
-            <input
-              id="loginUsername"
-              name="username"
-              autocomplete="username"
-              required
-            />
-          </div>
-          <div class="field">
-            <label for="loginPassword">パスワード</label>
-            <input
-              id="loginPassword"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              required
-            />
-          </div>
-          <button type="submit" class="submit">ログイン</button>
-        </form>
+        <!-- ログイン -->
+        <div id="loginPanel" class="panel-block active">
+          <form id="loginForm">
+            <div class="field">
+              <label for="loginUsername">ユーザー名</label>
+              <input
+                id="loginUsername"
+                name="username"
+                autocomplete="username"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="loginPassword">パスワード</label>
+              <input
+                id="loginPassword"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+            </div>
+            <div class="forgot-link">
+              <a id="openForgotPassword">パスワードをお忘れですか？</a>
+            </div>
+            <button type="submit" class="submit">ログイン</button>
+          </form>
+        </div>
 
-        <form id="registerForm">
-          <div class="field">
-            <label for="registerUsername"
-              >ユーザー名（半角英数字、3〜32文字）</label
-            >
-            <input
-              id="registerUsername"
-              name="username"
-              autocomplete="username"
-              required
-            />
+        <!-- 新規登録：メール認証 → ユーザー名・パスワード設定 -->
+        <div id="registerPanel" class="panel-block">
+          <div class="step active" id="registerStepEmail">
+            <p class="notice">
+              登録するメールアドレスに6桁の認証コードを送ります。
+            </p>
+            <div class="field">
+              <label for="registerEmail">メールアドレス</label>
+              <input
+                id="registerEmail"
+                type="email"
+                autocomplete="email"
+                required
+              />
+            </div>
+            <button type="button" class="submit" id="sendRegisterCodeBtn">
+              認証コードを送信
+            </button>
           </div>
-          <div class="field">
-            <label for="registerPassword">パスワード（8文字以上）</label>
-            <input
-              id="registerPassword"
-              name="password"
-              type="password"
-              autocomplete="new-password"
-              required
-            />
-          </div>
-          <button type="submit" class="submit">登録して始める</button>
-        </form>
 
-        <form id="pinForm">
-          <div class="field">
-            <label for="pinUsername">ユーザー名</label>
-            <input
-              id="pinUsername"
-              name="username"
-              autocomplete="username"
-              required
-            />
+          <div class="step" id="registerStepCode">
+            <p class="notice">
+              <span id="registerCodeSentTo"></span>
+              に送信したコードを入力してください。
+            </p>
+            <div class="field">
+              <label for="registerCode">認証コード（6桁）</label>
+              <input
+                id="registerCode"
+                inputmode="numeric"
+                pattern="\d*"
+                maxlength="6"
+                data-code
+                required
+              />
+            </div>
+            <button type="button" class="submit" id="verifyRegisterCodeBtn">
+              確認する
+            </button>
+            <button type="button" class="link-btn" id="resendRegisterCodeBtn">
+              コードを再送する
+            </button>
           </div>
-          <div class="field">
-            <label for="pinCode">PIN（4〜8桁）</label>
-            <input
-              id="pinCode"
-              name="pin"
-              type="password"
-              inputmode="numeric"
-              pattern="\d*"
-              maxlength="8"
-              data-pin
-              required
-            />
+
+          <div class="step" id="registerStepProfile">
+            <p class="notice">
+              メール認証が完了しました。ログインに使うユーザー名とパスワードを設定してください。
+            </p>
+            <div class="field">
+              <label for="registerUsername"
+                >ユーザー名（半角英数字、3〜32文字）</label
+              >
+              <input id="registerUsername" autocomplete="username" required />
+            </div>
+            <div class="field">
+              <label for="registerPassword">パスワード（8文字以上）</label>
+              <input
+                id="registerPassword"
+                type="password"
+                autocomplete="new-password"
+                required
+              />
+            </div>
+            <button type="button" class="submit" id="completeRegisterBtn">
+              登録して始める
+            </button>
           </div>
-          <button type="submit" class="submit">PINでログイン</button>
-        </form>
+        </div>
+
+        <!-- パスワードを忘れた場合：メール認証 → 新しいパスワード -->
+        <div id="forgotPanel" class="panel-block">
+          <div class="step active" id="forgotStepEmail">
+            <p class="notice">
+              登録済みのメールアドレスに、パスワード再設定用の6桁コードを送ります。
+            </p>
+            <div class="field">
+              <label for="forgotEmail">登録済みメールアドレス</label>
+              <input
+                id="forgotEmail"
+                type="email"
+                autocomplete="email"
+                required
+              />
+            </div>
+            <button type="button" class="submit" id="sendForgotCodeBtn">
+              認証コードを送信
+            </button>
+            <button type="button" class="link-btn" id="backToLoginFromForgot">
+              ログインに戻る
+            </button>
+          </div>
+
+          <div class="step" id="forgotStepCode">
+            <p class="notice">
+              <span id="forgotCodeSentTo"></span>
+              に送信したコードを入力してください。
+            </p>
+            <div class="field">
+              <label for="forgotCode">認証コード（6桁）</label>
+              <input
+                id="forgotCode"
+                inputmode="numeric"
+                pattern="\d*"
+                maxlength="6"
+                data-code
+                required
+              />
+            </div>
+            <button type="button" class="submit" id="verifyForgotCodeBtn">
+              確認する
+            </button>
+            <button type="button" class="link-btn" id="resendForgotCodeBtn">
+              コードを再送する
+            </button>
+          </div>
+
+          <div class="step" id="forgotStepNewPassword">
+            <p class="notice" id="forgotUsernameHint"></p>
+            <div class="field">
+              <label for="forgotNewPassword"
+                >新しいパスワード（8文字以上）</label
+              >
+              <input
+                id="forgotNewPassword"
+                type="password"
+                autocomplete="new-password"
+                required
+              />
+            </div>
+            <button type="button" class="submit" id="completeForgotBtn">
+              パスワードを再設定してログイン
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
     <script>
       const authError = document.getElementById("authError");
-      const forms = document.querySelectorAll("#mainAuthBlock form");
       const tabButtons = document.querySelectorAll(".tab-toggle");
+      const panelBlocks = document.querySelectorAll(".panel-block");
       const mainAuthBlock = document.getElementById("mainAuthBlock");
       const biometricBlock = document.getElementById("biometricBlock");
+
+      function showPanel(id) {
+        panelBlocks.forEach((panel) => panel.classList.remove("active"));
+        document.getElementById(id).classList.add("active");
+        authError.textContent = "";
+      }
+
+      function showStep(containerId, stepId) {
+        document
+          .querySelectorAll(`#${containerId} .step`)
+          .forEach((step) => step.classList.remove("active"));
+        document.getElementById(stepId).classList.add("active");
+        authError.textContent = "";
+      }
 
       tabButtons.forEach((button) => {
         button.addEventListener("click", () => {
           tabButtons.forEach((b) => b.classList.remove("active"));
-          forms.forEach((f) => f.classList.remove("active"));
           button.classList.add("active");
-          document
-            .getElementById(button.dataset.target)
-            .classList.add("active");
-          authError.textContent = "";
+          showPanel(button.dataset.target);
         });
       });
 
@@ -328,13 +449,15 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify(body),
+          body: JSON.stringify(body ?? {}),
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok)
           throw new Error(data.message || "エラーが発生しました。");
         return data;
       }
+
+      // ---------- ログイン ----------
 
       document
         .getElementById("loginForm")
@@ -354,17 +477,75 @@
           }
         });
 
+      // ---------- 新規登録（メール確認 → ユーザー名・パスワード） ----------
+
+      let pendingRegisterEmail = "";
+      let registerVerifyToken = "";
+
       document
-        .getElementById("registerForm")
-        .addEventListener("submit", async (event) => {
-          event.preventDefault();
+        .getElementById("sendRegisterCodeBtn")
+        .addEventListener("click", async () => {
+          showError("");
+          const email = document.getElementById("registerEmail").value.trim();
+          if (!email) {
+            showError("メールアドレスを入力してください。");
+            return;
+          }
+          try {
+            await submitJson("/api/auth/register/request-code", { email });
+            pendingRegisterEmail = email;
+            document.getElementById("registerCodeSentTo").textContent = email;
+            showStep("registerPanel", "registerStepCode");
+          } catch (error) {
+            showError(error.message);
+          }
+        });
+
+      document
+        .getElementById("resendRegisterCodeBtn")
+        .addEventListener("click", async () => {
+          showError("");
+          try {
+            await submitJson("/api/auth/register/request-code", {
+              email: pendingRegisterEmail,
+            });
+            showError("コードを再送しました。");
+          } catch (error) {
+            showError(error.message);
+          }
+        });
+
+      document
+        .getElementById("verifyRegisterCodeBtn")
+        .addEventListener("click", async () => {
+          showError("");
+          const code = document.getElementById("registerCode").value.trim();
+          try {
+            const data = await submitJson("/api/auth/register/verify-code", {
+              email: pendingRegisterEmail,
+              code,
+            });
+            registerVerifyToken = data.verifyToken;
+            showStep("registerPanel", "registerStepProfile");
+          } catch (error) {
+            showError(error.message);
+          }
+        });
+
+      document
+        .getElementById("completeRegisterBtn")
+        .addEventListener("click", async () => {
           showError("");
           const username = document
             .getElementById("registerUsername")
             .value.trim();
           const password = document.getElementById("registerPassword").value;
           try {
-            await submitJson("/api/auth/register", { username, password });
+            await submitJson("/api/auth/register/complete", {
+              verifyToken: registerVerifyToken,
+              username,
+              password,
+            });
             localStorage.setItem("mp_last_user", username);
             window.location.href = "/";
           } catch (error) {
@@ -372,16 +553,92 @@
           }
         });
 
+      // ---------- パスワードを忘れた場合 ----------
+
+      let pendingForgotEmail = "";
+      let forgotVerifyToken = "";
+
       document
-        .getElementById("pinForm")
-        .addEventListener("submit", async (event) => {
-          event.preventDefault();
+        .getElementById("openForgotPassword")
+        .addEventListener("click", () => {
+          tabButtons.forEach((b) => b.classList.remove("active"));
+          showPanel("forgotPanel");
+          showStep("forgotPanel", "forgotStepEmail");
+        });
+
+      document
+        .getElementById("backToLoginFromForgot")
+        .addEventListener("click", () => {
+          document
+            .querySelector('.tab-toggle[data-target="loginPanel"]')
+            .click();
+        });
+
+      document
+        .getElementById("sendForgotCodeBtn")
+        .addEventListener("click", async () => {
           showError("");
-          const username = document.getElementById("pinUsername").value.trim();
-          const pin = document.getElementById("pinCode").value;
+          const email = document.getElementById("forgotEmail").value.trim();
+          if (!email) {
+            showError("メールアドレスを入力してください。");
+            return;
+          }
           try {
-            await submitJson("/api/auth/login-pin", { username, pin });
-            localStorage.setItem("mp_last_user", username);
+            await submitJson("/api/auth/password-reset/request", { email });
+            pendingForgotEmail = email;
+            document.getElementById("forgotCodeSentTo").textContent = email;
+            showStep("forgotPanel", "forgotStepCode");
+          } catch (error) {
+            showError(error.message);
+          }
+        });
+
+      document
+        .getElementById("resendForgotCodeBtn")
+        .addEventListener("click", async () => {
+          showError("");
+          try {
+            await submitJson("/api/auth/password-reset/request", {
+              email: pendingForgotEmail,
+            });
+            showError("コードを再送しました。");
+          } catch (error) {
+            showError(error.message);
+          }
+        });
+
+      document
+        .getElementById("verifyForgotCodeBtn")
+        .addEventListener("click", async () => {
+          showError("");
+          const code = document.getElementById("forgotCode").value.trim();
+          try {
+            const data = await submitJson("/api/auth/password-reset/verify", {
+              email: pendingForgotEmail,
+              code,
+            });
+            forgotVerifyToken = data.verifyToken;
+            document.getElementById("forgotUsernameHint").textContent =
+              data.username
+                ? `ユーザー名は「${data.username}」です。新しいパスワードを設定してください。`
+                : "新しいパスワードを設定してください。";
+            showStep("forgotPanel", "forgotStepNewPassword");
+          } catch (error) {
+            showError(error.message);
+          }
+        });
+
+      document
+        .getElementById("completeForgotBtn")
+        .addEventListener("click", async () => {
+          showError("");
+          const newPassword =
+            document.getElementById("forgotNewPassword").value;
+          try {
+            await submitJson("/api/auth/password-reset/complete", {
+              verifyToken: forgotVerifyToken,
+              newPassword,
+            });
             window.location.href = "/";
           } catch (error) {
             showError(error.message);

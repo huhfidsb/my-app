@@ -19,8 +19,11 @@ import {
   hashDeviceSecret,
   deviceCookieHeader,
   clearDeviceCookieHeader,
+  createVerifyToken,
+  readVerifyToken,
   COOKIE_NAMES,
 } from "./lib/auth.js";
+import { sendMail, buildVerificationEmail } from "./lib/mailer.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -266,9 +269,7 @@ function buildCategoryBreakdown(
   kind: TransactionKind = "EXPENSE",
 ) {
   const buckets = new Map<string, number>();
-  for (const transaction of transactions.filter(
-    (item: { kind: string }) => item.kind === kind,
-  )) {
+  for (const transaction of transactions.filter((item) => item.kind === kind)) {
     buckets.set(
       transaction.category,
       (buckets.get(transaction.category) ?? 0) + transaction.amount,
@@ -391,14 +392,10 @@ async function buildMonthSummary(userId: number, monthKey: string) {
 
   const transactionViews = transactions.map(transactionToView);
   const income = sum(
-    transactions
-      .filter((t: { kind: string }) => t.kind === "INCOME")
-      .map((t: { amount: number }) => t.amount),
+    transactions.filter((t) => t.kind === "INCOME").map((t) => t.amount),
   );
   const expense = sum(
-    transactions
-      .filter((t: { kind: string }) => t.kind === "EXPENSE")
-      .map((t: { amount: number }) => t.amount),
+    transactions.filter((t) => t.kind === "EXPENSE").map((t) => t.amount),
   );
   const [yearText = "1970", monthText = "01"] = monthKey.split("-");
   const daysInMonth = new Date(
@@ -459,14 +456,12 @@ async function buildSavingsAnalytics(
 
   const totalSavings = totalIncome - totalExpense;
   const currentIncome = sum(
-    currentTransactions
-      .filter((t: { kind: string }) => t.kind === "INCOME")
-      .map((t: { amount: number }) => t.amount),
+    currentTransactions.filter((t) => t.kind === "INCOME").map((t) => t.amount),
   );
   const currentExpense = sum(
     currentTransactions
-      .filter((t: { kind: string }) => t.kind === "EXPENSE")
-      .map((t: { amount: number }) => t.amount),
+      .filter((t) => t.kind === "EXPENSE")
+      .map((t) => t.amount),
   );
 
   const currentCategoryMap = new Map<string, number>();
@@ -583,8 +578,7 @@ function requireAuthApi(req: Request, res: Response, next: NextFunction) {
 function userPublicView(user: db.UserRow) {
   return {
     username: user.username,
-    pinEnabled: user.pinEnabled,
-    analyticsEnabled: user.analyticsEnabled,
+    email: user.email,
     savingsGoalAmount: user.savingsGoalAmount,
   };
 }
@@ -598,6 +592,28 @@ app.use(express.urlencoded({ extended: true }));
 app.use(attachUser);
 
 const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,32}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CODE_TTL_MS = 10 * 60 * 1000;
+const CODE_REQUEST_COOLDOWN_MS = 60 * 1000;
+const MAX_CODE_ATTEMPTS = 5;
+
+// メール認証コードの連投を防ぐ簡易クールダウン（メモリ上のみ。再起動でリセットされます）
+const lastCodeRequestAt = new Map<string, number>();
+
+function generateSixDigitCode(): string {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+async function issueVerificationCode(
+  email: string,
+  purpose: "register" | "reset",
+) {
+  const code = generateSixDigitCode();
+  const expiresAt = new Date(Date.now() + CODE_TTL_MS);
+  await db.createEmailVerification(email, purpose, hashSecret(code), expiresAt);
+  const { subject, text } = buildVerificationEmail(code, purpose);
+  await sendMail({ to: email, subject, text });
+}
 
 // ---------------- 認証ページ ----------------
 
@@ -614,10 +630,99 @@ app.get("/logout", (req, res) => {
   res.redirect("/login");
 });
 
-// ---------------- 認証API ----------------
+// ---------------- 新規登録（メール認証 → ユーザー名・パスワード設定） ----------------
 
-app.post("/api/auth/register", async (req, res) => {
+app.post("/api/auth/register/request-code", async (req, res) => {
   try {
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      res
+        .status(400)
+        .json({ message: "正しいメールアドレスを入力してください。" });
+      return;
+    }
+
+    const existing = await db.findUserByEmail(email);
+    if (existing) {
+      res
+        .status(409)
+        .json({ message: "このメールアドレスは既に登録されています。" });
+      return;
+    }
+
+    const lastRequest = lastCodeRequestAt.get(`register:${email}`) || 0;
+    if (Date.now() - lastRequest < CODE_REQUEST_COOLDOWN_MS) {
+      res.status(429).json({
+        message: "コードを送信しました。1分ほど待ってから再度お試しください。",
+      });
+      return;
+    }
+    lastCodeRequestAt.set(`register:${email}`, Date.now());
+
+    await issueVerificationCode(email, "register");
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("認証コード送信に失敗:", error);
+    res.status(500).json({ message: "認証コードの送信に失敗しました。" });
+  }
+});
+
+app.post("/api/auth/register/verify-code", async (req, res) => {
+  try {
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    const code = String(req.body.code || "").trim();
+
+    const verification = await db.findLatestEmailVerification(
+      email,
+      "register",
+    );
+    if (
+      !verification ||
+      verification.consumedAt ||
+      verification.expiresAt.getTime() < Date.now()
+    ) {
+      res.status(400).json({
+        message: "コードの有効期限が切れています。もう一度送信してください。",
+      });
+      return;
+    }
+    if (verification.attempts >= MAX_CODE_ATTEMPTS) {
+      res.status(429).json({
+        message:
+          "試行回数が上限に達しました。もう一度コードを送信してください。",
+      });
+      return;
+    }
+    await db.incrementVerificationAttempts(verification.id);
+
+    if (!verifySecret(code, verification.codeHash)) {
+      res.status(400).json({ message: "コードが正しくありません。" });
+      return;
+    }
+
+    await db.consumeEmailVerification(verification.id);
+    res.json({ verifyToken: createVerifyToken(email, "register") });
+  } catch (error) {
+    console.error("認証コードの確認に失敗:", error);
+    res.status(500).json({ message: "認証コードの確認に失敗しました。" });
+  }
+});
+
+app.post("/api/auth/register/complete", async (req, res) => {
+  try {
+    const payload = readVerifyToken(String(req.body.verifyToken || ""));
+    if (!payload || payload.purpose !== "register") {
+      res.status(401).json({
+        message:
+          "メール認証が確認できませんでした。最初からやり直してください。",
+      });
+      return;
+    }
+
     const username = String(req.body.username || "").trim();
     const password = String(req.body.password || "");
 
@@ -635,13 +740,24 @@ app.post("/api/auth/register", async (req, res) => {
       return;
     }
 
-    const existing = await db.findUserByUsername(username);
-    if (existing) {
+    const existingUsername = await db.findUserByUsername(username);
+    if (existingUsername) {
       res.status(409).json({ message: "そのユーザー名は既に使われています。" });
       return;
     }
+    const existingEmail = await db.findUserByEmail(payload.email);
+    if (existingEmail) {
+      res
+        .status(409)
+        .json({ message: "このメールアドレスは既に登録されています。" });
+      return;
+    }
 
-    const user = await db.createUser(username, hashSecret(password));
+    const user = await db.createUser(
+      username,
+      payload.email,
+      hashSecret(password),
+    );
     await db.createDefaultCategories(user.id, DEFAULT_CATEGORIES);
 
     res.setHeader(
@@ -654,6 +770,8 @@ app.post("/api/auth/register", async (req, res) => {
     res.status(500).json({ message: "登録に失敗しました。" });
   }
 });
+
+// ---------------- ログイン ----------------
 
 app.post("/api/auth/login", async (req, res) => {
   try {
@@ -679,57 +797,124 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-app.post("/api/auth/login-pin", async (req, res) => {
-  try {
-    const username = String(req.body.username || "").trim();
-    const pin = String(req.body.pin || "");
+app.post("/api/auth/logout", (req, res) => {
+  res.setHeader("Set-Cookie", clearSessionCookieHeader(IS_PRODUCTION));
+  res.json({ ok: true });
+});
 
-    const user = await db.findUserByUsername(username);
-    if (!user || !user.pinEnabled || !verifySecret(pin, user.pinHash)) {
-      res.status(401).json({ message: "PINが正しくありません。" });
+// ---------------- パスワードを忘れた場合（登録メールアドレスから再設定） ----------------
+
+app.post("/api/auth/password-reset/request", async (req, res) => {
+  try {
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      res
+        .status(400)
+        .json({ message: "正しいメールアドレスを入力してください。" });
       return;
     }
 
+    const lastRequest = lastCodeRequestAt.get(`reset:${email}`) || 0;
+    if (Date.now() - lastRequest < CODE_REQUEST_COOLDOWN_MS) {
+      res.status(429).json({
+        message: "コードを送信しました。1分ほど待ってから再度お試しください。",
+      });
+      return;
+    }
+    lastCodeRequestAt.set(`reset:${email}`, Date.now());
+
+    // メール登録の有無に関わらず同じ応答を返す（アカウントの存在を推測されないようにするため）
+    const user = await db.findUserByEmail(email);
+    if (user) {
+      await issueVerificationCode(email, "reset");
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("パスワード再設定コード送信に失敗:", error);
+    res.status(500).json({ message: "コードの送信に失敗しました。" });
+  }
+});
+
+app.post("/api/auth/password-reset/verify", async (req, res) => {
+  try {
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    const code = String(req.body.code || "").trim();
+
+    const verification = await db.findLatestEmailVerification(email, "reset");
+    if (
+      !verification ||
+      verification.consumedAt ||
+      verification.expiresAt.getTime() < Date.now()
+    ) {
+      res.status(400).json({
+        message: "コードの有効期限が切れています。もう一度送信してください。",
+      });
+      return;
+    }
+    if (verification.attempts >= MAX_CODE_ATTEMPTS) {
+      res.status(429).json({
+        message:
+          "試行回数が上限に達しました。もう一度コードを送信してください。",
+      });
+      return;
+    }
+    await db.incrementVerificationAttempts(verification.id);
+
+    if (!verifySecret(code, verification.codeHash)) {
+      res.status(400).json({ message: "コードが正しくありません。" });
+      return;
+    }
+
+    await db.consumeEmailVerification(verification.id);
+    const user = await db.findUserByEmail(email);
+    res.json({
+      verifyToken: createVerifyToken(email, "reset"),
+      username: user?.username ?? null,
+    });
+  } catch (error) {
+    console.error("パスワード再設定コードの確認に失敗:", error);
+    res.status(500).json({ message: "コードの確認に失敗しました。" });
+  }
+});
+
+app.post("/api/auth/password-reset/complete", async (req, res) => {
+  try {
+    const payload = readVerifyToken(String(req.body.verifyToken || ""));
+    if (!payload || payload.purpose !== "reset") {
+      res.status(401).json({
+        message:
+          "メール認証が確認できませんでした。最初からやり直してください。",
+      });
+      return;
+    }
+
+    const newPassword = String(req.body.newPassword || "");
+    if (newPassword.length < 8) {
+      res
+        .status(400)
+        .json({ message: "パスワードは8文字以上にしてください。" });
+      return;
+    }
+
+    const user = await db.findUserByEmail(payload.email);
+    if (!user) {
+      res.status(404).json({ message: "アカウントが見つかりません。" });
+      return;
+    }
+
+    await db.updateUserPassword(user.id, hashSecret(newPassword));
     res.setHeader(
       "Set-Cookie",
       sessionCookieHeader(createSessionCookieValue(user.id), IS_PRODUCTION),
     );
     res.json({ user: userPublicView(user) });
   } catch (error) {
-    console.error("PINログインに失敗:", error);
-    res.status(500).json({ message: "PINログインに失敗しました。" });
-  }
-});
-
-app.post("/api/auth/logout", (req, res) => {
-  res.setHeader("Set-Cookie", clearSessionCookieHeader(IS_PRODUCTION));
-  res.json({ ok: true });
-});
-
-app.post("/api/auth/pin", requireAuthApi, async (req, res) => {
-  try {
-    const pin = String(req.body.pin || "");
-    if (!/^\d{4,8}$/.test(pin)) {
-      res
-        .status(400)
-        .json({ message: "PINは4〜8桁の数字で入力してください。" });
-      return;
-    }
-    await db.updateUserPin(req.user!.id, hashSecret(pin), true);
-    res.json({ ok: true });
-  } catch (error) {
-    console.error("PIN設定に失敗:", error);
-    res.status(500).json({ message: "PINの設定に失敗しました。" });
-  }
-});
-
-app.delete("/api/auth/pin", requireAuthApi, async (req, res) => {
-  try {
-    await db.updateUserPin(req.user!.id, null, false);
-    res.json({ ok: true });
-  } catch (error) {
-    console.error("PIN削除に失敗:", error);
-    res.status(500).json({ message: "PINの削除に失敗しました。" });
+    console.error("パスワード再設定に失敗:", error);
+    res.status(500).json({ message: "パスワードの再設定に失敗しました。" });
   }
 });
 
@@ -815,19 +1000,12 @@ app.get("/api/auth/webauthn/credentials", requireAuthApi, async (req, res) => {
   try {
     const items = await db.listCredentialsForUser(req.user!.id);
     res.json({
-      items: items.map(
-        (item: {
-          id: number;
-          label: string | null;
-          createdAt: Date;
-          lastUsedAt: Date | null;
-        }) => ({
-          id: item.id,
-          label: item.label,
-          createdAt: item.createdAt,
-          lastUsedAt: item.lastUsedAt,
-        }),
-      ),
+      items: items.map((item) => ({
+        id: item.id,
+        label: item.label,
+        createdAt: item.createdAt,
+        lastUsedAt: item.lastUsedAt,
+      })),
     });
   } catch (error) {
     console.error("端末一覧の取得に失敗:", error);
@@ -854,14 +1032,8 @@ app.delete(
 
 app.put("/api/settings", requireAuthApi, async (req, res) => {
   try {
-    const patch: {
-      analyticsEnabled?: boolean;
-      savingsGoalAmount?: number | null;
-    } = {};
+    const patch: { savingsGoalAmount?: number | null } = {};
 
-    if (req.body.analyticsEnabled !== undefined) {
-      patch.analyticsEnabled = Boolean(req.body.analyticsEnabled);
-    }
     if (req.body.savingsGoalAmount !== undefined) {
       const raw = req.body.savingsGoalAmount;
       patch.savingsGoalAmount =
@@ -912,23 +1084,16 @@ app.get("/", requireAuthPage, async (req, res) => {
         monthSummary,
         yearlyGraph,
         transactions,
-        splitSessions: splitSessions.map(
-          (item: {
-            id: number;
-            participantsText: string;
-            contributionsText: string;
-            resultText: string;
-          }) => ({
-            ...item,
-            participants: JSON.parse(item.participantsText) as string[],
-            payments: JSON.parse(item.contributionsText) as SplitPayment[],
-            result: JSON.parse(item.resultText) as Array<{
-              from: string;
-              to: string;
-              amount: number;
-            }>,
-          }),
-        ),
+        splitSessions: splitSessions.map((item) => ({
+          ...item,
+          participants: JSON.parse(item.participantsText) as string[],
+          payments: JSON.parse(item.contributionsText) as SplitPayment[],
+          result: JSON.parse(item.resultText) as Array<{
+            from: string;
+            to: string;
+            amount: number;
+          }>,
+        })),
         savings,
         categories,
         user: userPublicView(user),
@@ -1081,19 +1246,12 @@ app.get("/api/split-sessions", requireAuthApi, async (req, res) => {
     });
     res.json({
       monthKey,
-      items: sessions.map(
-        (item: {
-          id: number;
-          participantsText: string;
-          contributionsText: string;
-          resultText: string;
-        }) => ({
-          ...item,
-          participants: JSON.parse(item.participantsText) as string[],
-          payments: JSON.parse(item.contributionsText) as SplitPayment[],
-          result: JSON.parse(item.resultText),
-        }),
-      ),
+      items: sessions.map((item) => ({
+        ...item,
+        participants: JSON.parse(item.participantsText) as string[],
+        payments: JSON.parse(item.contributionsText) as SplitPayment[],
+        result: JSON.parse(item.resultText),
+      })),
     });
   } catch (error) {
     console.error("割り勘記録の取得に失敗:", error);

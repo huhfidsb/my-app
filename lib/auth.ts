@@ -7,7 +7,7 @@ const DEVICE_COOKIE = "mp_device";
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30日
 const DEVICE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000; // 1年
 
-// ---------- パスワード / PIN のハッシュ化（Node標準crypto の scrypt。追加パッケージ不要） ----------
+// ---------- パスワード / 認証コードのハッシュ化（Node標準crypto の scrypt。追加パッケージ不要） ----------
 
 export function hashSecret(plain: string): string {
   const salt = crypto.randomBytes(16);
@@ -123,3 +123,45 @@ export function clearDeviceCookieHeader(secure: boolean): string {
 }
 
 export const COOKIE_NAMES = { SESSION: SESSION_COOKIE, DEVICE: DEVICE_COOKIE };
+
+// ---------- メール確認済みトークン（登録・パスワード再設定の次のステップに進む許可証） ----------
+// 認証コードの検証に成功した後、これを発行してクライアントに渡します。
+// 短時間（15分）だけ有効な署名付きトークンで、サーバー側に状態を持ちません。
+
+export type VerifyTokenPayload = {
+  email: string;
+  purpose: "register" | "reset";
+  iat: number;
+};
+const VERIFY_TOKEN_MAX_AGE_MS = 15 * 60 * 1000;
+
+export function createVerifyToken(
+  email: string,
+  purpose: "register" | "reset",
+): string {
+  const payload: VerifyTokenPayload = {
+    email: email.toLowerCase(),
+    purpose,
+    iat: Date.now(),
+  };
+  const json = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `${json}.${sign(json)}`;
+}
+
+export function readVerifyToken(
+  token: string | undefined,
+): VerifyTokenPayload | null {
+  if (!token) return null;
+  const [json, signature] = token.split(".");
+  if (!json || !signature) return null;
+  if (sign(json) !== signature) return null;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(json, "base64url").toString("utf8"),
+    ) as VerifyTokenPayload;
+    if (Date.now() - payload.iat > VERIFY_TOKEN_MAX_AGE_MS) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}

@@ -21,8 +21,6 @@
 
         html, body {
             margin: 0;
-            height: 100%;
-            overflow: hidden; /* ページ全体はスクロールしない。固定レイアウトにする */
         }
 
         body {
@@ -34,30 +32,24 @@
                 linear-gradient(180deg, #fbf8f3 0%, #f4efe7 100%);
         }
 
-        /* 画面サイズが変わってもレイアウトが崩れないよう、幅を固定する */
+        /*
+          画面サイズ（スマホの縦長〜PCの横長）が変わっても、要素の配置（縦1カラムの並び順）は
+          常に同じにしたまま、画面の横幅に合わせて全体を拡大縮小して見やすく表示します。
+          スクロールは常にページ全体（ブラウザの縦スクロール）で行い、内部の枠だけが
+          スクロールすることはありません。実装は #scaleRoot 下部のスクリプトを参照してください。
+        */
+        .scale-outer { width: 100%; overflow: hidden; }
+        .scale-root { width: 560px; transform-origin: top center; margin: 0 auto; }
+
         .shell {
-            width: 1280px;
-            min-width: 1280px;
-            margin: 0 auto;
-            padding: 18px 0 16px;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            padding: 18px 0 32px;
         }
 
-        .hero, .pie-compare { display: grid; }
-        .hero { grid-template-columns: 1.6fr 0.9fr; gap: 16px; margin-bottom: 14px; flex: 0 0 auto; }
-        .grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 20px; align-items: start; }
-        .pie-compare { grid-template-columns: 1fr 1fr; gap: 20px; }
+        .hero { margin-bottom: 14px; }
+        .grid { display: flex; flex-direction: column; gap: 20px; }
+        .pie-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .pie-row { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
         .stack { display: grid; gap: 16px; }
-
-        /* タブの中身の表示エリア：ここだけ高さを確保し、内部で必要な要素だけスクロールさせる */
-        .tab-content-area { flex: 1 1 auto; min-height: 0; overflow: hidden; }
-        .tab-panel { height: 100%; }
-        .tab-panel .grid { height: 100%; }
-        .tab-panel .stack > .panel { overflow: hidden; }
 
         .hero-card,
         .panel {
@@ -80,7 +72,6 @@
             pointer-events: none;
         }
 
-        .hero-side { padding: 22px; display: grid; gap: 12px; align-content: start; }
         .metric, .stat, .entry, .legend-item, .split-row, .weekday, .day, .chart-box {
             border: 1px solid rgba(19, 34, 56, 0.08);
             background: rgba(255, 255, 255, 0.94);
@@ -93,8 +84,8 @@
         }
 
         h1, h2, h3, p { margin: 0; }
-        h1 { margin-top: 16px; font-size: clamp(2rem, 4vw, 3.8rem); line-height: 1.08; }
-        .hero p { margin-top: 14px; max-width: 56ch; color: var(--muted); line-height: 1.8; }
+        h1 { margin-top: 16px; font-size: 2.4rem; line-height: 1.08; }
+        .hero p { margin-top: 14px; color: var(--muted); line-height: 1.8; }
         .hero-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 22px; }
         .stat { border-radius: 18px; padding: 16px; }
         .stat small, .metric .label { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -156,13 +147,8 @@
             padding: 12px 22px; border-radius: 999px; font-weight: 700; cursor: pointer;
         }
         .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-        .tab-content-area { position: relative; }
         .tab-panel { display: none; }
-        .tab-panel.active { display: block; overflow-y: auto; height: 100%; padding-right: 4px; }
-        /* 「収支記録」タブは全体をスクロールさせず、記録一覧の枠内だけをスクロールさせる */
-        #tab-record.active { overflow: hidden; }
-        #tab-record .stack:last-child .panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-        #transactionList { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+        .tab-panel.active { display: block; }
 
         /* 支出・収入 ワンタッチ切り替え */
         .kind-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -195,14 +181,14 @@
             border: 6px solid transparent; border-top-color: rgba(19, 34, 56, 0.92);
         }
         canvas { width: 100%; height: 240px; display: block; }
-        .chart-box-large canvas { height: 340px; }
-        .pie { width: 220px; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(#cbd5e1 0deg 360deg); position: relative; }
-        .pie::after { content: ""; position: absolute; inset: 28px; border-radius: 50%; background: #fff; }
+        .chart-box-large canvas { height: 260px; }
+        .pie { width: 200px; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(#cbd5e1 0deg 360deg); position: relative; }
+        .pie::after { content: ""; position: absolute; inset: 26px; border-radius: 50%; background: #fff; }
 
-        .calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
-        .calendar-large { gap: 10px; }
-        .calendar-large .day, .calendar-large .weekday { min-height: 96px; }
-        .weekday, .day { min-height: 72px; padding: 10px; border-radius: 14px; }
+        .calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+        .calendar-large { gap: 8px; }
+        .calendar-large .day, .calendar-large .weekday { min-height: 64px; }
+        .weekday, .day { min-height: 56px; padding: 8px 6px; border-radius: 12px; }
         .weekday { min-height: auto; text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); }
         .day .date { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 10px; }
         .day .income-day { color: var(--income); font-weight: 700; }
@@ -231,11 +217,11 @@
         .progress-bar { width: 100%; height: 14px; border-radius: 999px; background: rgba(19, 34, 56, 0.08); overflow: hidden; }
         .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #0f4c5c, #1d4ed8); border-radius: 999px; transition: width 0.3s ease; }
 
-        /* 画面幅にかかわらずレイアウトを固定しています（意図的にレスポンシブ対応を外しています）。
-           画面が1280pxより狭い端末では横スクロールが発生します。 */
+        /* 配置は常に同じ縦1カラムのまま、#scaleRoot に対する transform: scale() で
+           画面幅に合わせて全体を拡大縮小します（詳細はページ末尾のスクリプト）。 */
 
         /* ---------- ハンバーガーメニュー・設定パネル ---------- */
-        .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex: 0 0 auto; }
+        .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
         .hamburger-btn {
             width: 44px; height: 44px; border-radius: 14px; padding: 0; background: rgba(255,255,255,0.85);
             border: 1px solid rgba(19,34,56,0.12); color: var(--accent); font-size: 18px;
@@ -252,7 +238,7 @@
         .settings-backdrop.open { opacity: 1; pointer-events: auto; }
 
         .settings-panel {
-            position: fixed; top: 0; left: 0; height: 100vh; width: 360px;
+            position: fixed; top: 0; left: 0; height: 100vh; width: min(360px, 92vw);
             background: #fff; box-shadow: 0 0 40px rgba(19,34,56,0.25); z-index: 41;
             transform: translateX(-100%); transition: transform 0.18s ease;
             padding: 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 22px;
@@ -272,7 +258,6 @@
         .switch input:checked + .track::after { transform: translateX(18px); }
         .device-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(19,34,56,0.04); margin-bottom: 8px; font-size: 0.86rem; }
         .settings-note { color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
-        .is-hidden { display: none; }
     </style>
 </head>
 <body>
@@ -283,22 +268,10 @@
 
         <div class="settings-section">
             <h3>アカウント</h3>
-            <p class="muted">ログイン中: <strong><%= initialData.user.username %></strong></p>
+            <p class="muted">ログイン中: <strong><%= initialData.user.username %></strong><br>（<%= initialData.user.email %>）</p>
             <div class="actions">
                 <button type="button" class="secondary btn-sm" id="logoutBtn">ログアウト</button>
             </div>
-        </div>
-
-        <div class="settings-section">
-            <h3>表示する機能</h3>
-            <div class="settings-row">
-                <span>「分析」タブを表示する</span>
-                <label class="switch">
-                    <input type="checkbox" id="analyticsEnabledToggle" <%= initialData.user.analyticsEnabled ? "checked" : "" %>>
-                    <span class="track"></span>
-                </label>
-            </div>
-            <p class="settings-note">オフにすると、円グラフや月次分析を含む「分析」タブを一覧から隠します（データは削除されません）。</p>
         </div>
 
         <div class="settings-section">
@@ -313,20 +286,6 @@
         </div>
 
         <div class="settings-section">
-            <h3>PINコードでログイン</h3>
-            <p class="settings-note">パスワードの代わりに数字のPINでもログインできるようにします。</p>
-            <div id="pinStatusView"></div>
-            <div class="field" style="margin-top: 8px;">
-                <label for="settingsPinInput">新しいPIN（4〜8桁）</label>
-                <input type="password" id="settingsPinInput" inputmode="numeric" pattern="\d*" maxlength="8" placeholder="例）1234">
-            </div>
-            <div class="actions">
-                <button type="button" class="secondary btn-sm" id="setPinBtn">PINを設定・更新</button>
-                <button type="button" class="danger btn-sm" id="removePinBtn">PINを削除</button>
-            </div>
-        </div>
-
-        <div class="settings-section">
             <h3>Face ID・指紋でログイン</h3>
             <p class="settings-note">この端末でWebAuthn（Face ID・指紋・画面ロック等）を使ったログインを許可します。</p>
             <div id="webauthnDeviceList"></div>
@@ -336,6 +295,8 @@
         </div>
     </aside>
 
+    <div class="scale-outer" id="scaleOuter">
+    <div class="scale-root" id="scaleRoot">
     <div class="shell">
         <div class="topbar">
             <button type="button" class="hamburger-btn" id="openSettingsBtn" title="設定" aria-label="設定を開く">
@@ -359,18 +320,11 @@
                 </div>
             </div>
 
-            <aside class="hero-side panel">
-                <div class="metric">
-                    <div class="label">今月（<%= initialData.monthKey %>）の記録件数</div>
-                    <strong class="value"><%= initialData.transactions.length %>件</strong>
-                    <div class="muted" style="margin-top: 6px;">このカードは常にサイトを開いた時点の月（今月）を表示します。過去の月を見たいときは各タブの年月選択を使ってください。</div>
-                </div>
-            </aside>
         </section>
 
         <div class="tabs" role="tablist">
             <button type="button" class="tab-btn active" data-tab="tab-record">収支記録</button>
-            <button type="button" class="tab-btn <%= initialData.user.analyticsEnabled ? '' : 'is-hidden' %>">分析</button>
+            <button type="button" class="tab-btn" data-tab="tab-analysis">分析</button>
             <button type="button" class="tab-btn" data-tab="tab-split">割り勘</button>
             <button type="button" class="tab-btn" data-tab="tab-savings">貯蓄管理</button>
         </div>
@@ -667,10 +621,53 @@
         </div>
         </div>
     </div>
+    </div>
+    </div>
 
     <script id="initial-data" type="application/json"><%- JSON.stringify(initialData).replace(/</g, "\\u003c") %></script>
 
     <script>
+        // ---------------- 画面サイズに合わせた拡大縮小（配置はどの画面でも同じ） ----------------
+        // 基準デザイン幅(560px)で組んだレイアウトを、画面の横幅に応じてまるごと拡大縮小します。
+        // スマホの縦長画面ではそのまま近い縮尺で、PCの横長画面では横幅に合わせて大きく表示され、
+        // その分すべての要素が縦方向にも大きくなるため、ページ全体を縦スクロールして見る形になります。
+        (function setupScaleToFit() {
+            const BASE_WIDTH = 560;
+            const MIN_SCALE = 0.6;
+            const MAX_SCALE = 1.85; // 極端に大きな画面で文字が巨大化しすぎないための上限（好みで調整可）
+            const scaleOuter = document.getElementById("scaleOuter");
+            const scaleRoot = document.getElementById("scaleRoot");
+            let currentScale = 1;
+
+            function computeScale() {
+                const viewportWidth = window.innerWidth;
+                return Math.min(MAX_SCALE, Math.max(MIN_SCALE, viewportWidth / BASE_WIDTH));
+            }
+
+            function applyHeight() {
+                scaleOuter.style.height = `${scaleRoot.scrollHeight * currentScale}px`;
+            }
+
+            function applyScale() {
+                currentScale = computeScale();
+                scaleRoot.style.transform = `scale(${currentScale})`;
+                applyHeight();
+            }
+
+            window.addEventListener("resize", applyScale);
+            window.addEventListener("orientationchange", applyScale);
+
+            if (window.ResizeObserver) {
+                new ResizeObserver(applyHeight).observe(scaleRoot);
+            } else {
+                // ResizeObserver 非対応ブラウザ向けの簡易フォールバック
+                setInterval(applyHeight, 500);
+            }
+
+            applyScale();
+            window.__reapplyScale = applyScale;
+        })();
+
         const initialData = JSON.parse(document.getElementById("initial-data").textContent || "{}");
         const currencyFormatter = new Intl.NumberFormat("ja-JP");
         const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
@@ -1583,13 +1580,11 @@
 
         const settingsBackdrop = document.getElementById("settingsBackdrop");
         const settingsPanel = document.getElementById("settingsPanel");
-        const analysisTabBtn = document.getElementById("analysisTabBtn");
 
         function openSettings() {
             settingsBackdrop.classList.add("open");
             settingsPanel.classList.add("open");
             refreshDeviceList();
-            refreshPinStatus();
         }
         function closeSettings() {
             settingsBackdrop.classList.remove("open");
@@ -1605,20 +1600,6 @@
             window.location.href = "/login";
         });
 
-        document.getElementById("analyticsEnabledToggle").addEventListener("change", async (event) => {
-            const enabled = event.target.checked;
-            try {
-                await api("/api/settings", { method: "PUT", body: JSON.stringify({ analyticsEnabled: enabled }) });
-                analysisTabBtn.style.display = enabled ? "" : "none";
-                if (!enabled && analysisTabBtn.classList.contains("active")) {
-                    document.querySelector('.tab-btn[data-tab="tab-record"]').click();
-                }
-            } catch (error) {
-                alert(error.message);
-                event.target.checked = !enabled;
-            }
-        });
-
         document.getElementById("saveSettingsGoalBtn").addEventListener("click", async () => {
             const raw = document.getElementById("settingsSavingsGoal").value;
             const savingsGoalAmount = raw === "" ? null : Math.max(0, Number.parseInt(raw, 10) || 0);
@@ -1627,40 +1608,6 @@
                 document.getElementById("savingsGoalInput").value = savingsGoalAmount ?? "";
                 await refreshAll();
                 alert("目標額を保存しました。");
-            } catch (error) {
-                alert(error.message);
-            }
-        });
-
-        async function refreshPinStatus() {
-            const view = document.getElementById("pinStatusView");
-            view.innerHTML = initialData.user.pinEnabled
-                ? '<p class="muted">現在PINログインは有効です。</p>'
-                : '<p class="muted">現在PINログインは未設定です。</p>';
-        }
-
-        document.getElementById("setPinBtn").addEventListener("click", async () => {
-            const pin = document.getElementById("settingsPinInput").value;
-            if (!/^\d{4,8}$/.test(pin)) {
-                alert("PINは4〜8桁の数字で入力してください。");
-                return;
-            }
-            try {
-                await api("/api/auth/pin", { method: "POST", body: JSON.stringify({ pin }) });
-                initialData.user.pinEnabled = true;
-                document.getElementById("settingsPinInput").value = "";
-                refreshPinStatus();
-                alert("PINを設定しました。");
-            } catch (error) {
-                alert(error.message);
-            }
-        });
-
-        document.getElementById("removePinBtn").addEventListener("click", async () => {
-            try {
-                await api("/api/auth/pin", { method: "DELETE" });
-                initialData.user.pinEnabled = false;
-                refreshPinStatus();
             } catch (error) {
                 alert(error.message);
             }
