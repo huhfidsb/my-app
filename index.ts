@@ -28,29 +28,21 @@ import { sendMail, buildVerificationEmail } from "./lib/mailer.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 type TransactionKind = "INCOME" | "EXPENSE";
-type SatisfactionLevel = "SATISFIED" | "NORMAL" | "REGRET";
-type SpendingStyle = "INVESTMENT" | "CONSUMPTION" | "WASTE";
-type PaymentMethod = "CASH" | "CARD" | "QR" | "BANK_TRANSFER" | "OTHER";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8888);
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 const transactionKinds: TransactionKind[] = ["INCOME", "EXPENSE"];
-const satisfactionLevels: SatisfactionLevel[] = [
-  "SATISFIED",
-  "NORMAL",
-  "REGRET",
+const DEFAULT_EXPENSE_CATEGORIES = ["食費", "生活費", "交通費", "趣味"];
+const DEFAULT_INCOME_CATEGORIES = ["給与", "副業", "お小遣い", "その他収入"];
+const DEFAULT_PAYMENT_METHODS = [
+  "現金",
+  "カード",
+  "QRコード",
+  "銀行振込",
+  "その他",
 ];
-const spendingStyles: SpendingStyle[] = ["INVESTMENT", "CONSUMPTION", "WASTE"];
-const paymentMethods: PaymentMethod[] = [
-  "CASH",
-  "CARD",
-  "QR",
-  "BANK_TRANSFER",
-  "OTHER",
-];
-const DEFAULT_CATEGORIES = ["食費", "生活費", "趣味", "交通費"];
 
 type TransactionRecord = db.TransactionRow;
 
@@ -161,17 +153,7 @@ function buildTransactionData(
     kind: parseEnumValue(body.kind, transactionKinds, "EXPENSE"),
     amount: clampInt(body.amount),
     category: String(body.category || "未分類"),
-    paymentMethod: parseEnumValue(body.paymentMethod, paymentMethods, "OTHER"),
-    satisfaction: parseEnumValue(
-      body.satisfaction,
-      satisfactionLevels,
-      "NORMAL",
-    ),
-    spendingStyle: parseEnumValue(
-      body.spendingStyle,
-      spendingStyles,
-      "CONSUMPTION",
-    ),
+    paymentMethod: String(body.paymentMethod || "その他").trim() || "その他",
     memo: String(body.memo || "").trim() || null,
   } as db.TransactionInput;
 }
@@ -284,18 +266,6 @@ function buildCategoryBreakdown(
       amountLabel: formatCurrency(amount),
       share: total === 0 ? 0 : Math.round((amount / total) * 1000) / 10,
     }));
-}
-
-function buildCountBreakdown<T extends string>(
-  transactions: TransactionRecord[],
-  key: "satisfaction" | "spendingStyle",
-) {
-  const buckets = new Map<string, number>();
-  for (const transaction of transactions) {
-    const value = transaction[key] as T;
-    buckets.set(value, (buckets.get(value) ?? 0) + 1);
-  }
-  return [...buckets.entries()].map(([label, count]) => ({ label, count }));
 }
 
 function buildMonthlyGraph(transactions: TransactionRecord[], year: number) {
@@ -414,14 +384,6 @@ async function buildMonthSummary(userId: number, monthKey: string) {
     dailyRows: buildDailyRows(transactions, monthKey),
     categoryBreakdown: buildCategoryBreakdown(transactions, "EXPENSE"),
     incomeCategoryBreakdown: buildCategoryBreakdown(transactions, "INCOME"),
-    satisfactionBreakdown: buildCountBreakdown<SatisfactionLevel>(
-      transactions,
-      "satisfaction",
-    ),
-    spendingStyleBreakdown: buildCountBreakdown<SpendingStyle>(
-      transactions,
-      "spendingStyle",
-    ),
   };
 }
 
@@ -580,6 +542,7 @@ function userPublicView(user: db.UserRow) {
     username: user.username,
     email: user.email,
     savingsGoalAmount: user.savingsGoalAmount,
+    guidesEnabled: user.guidesEnabled,
   };
 }
 
@@ -654,9 +617,12 @@ app.post("/api/auth/register/request-code", async (req, res) => {
 
     const lastRequest = lastCodeRequestAt.get(`register:${email}`) || 0;
     if (Date.now() - lastRequest < CODE_REQUEST_COOLDOWN_MS) {
-      res.status(429).json({
-        message: "コードを送信しました。1分ほど待ってから再度お試しください。",
-      });
+      res
+        .status(429)
+        .json({
+          message:
+            "コードを送信しました。1分ほど待ってから再度お試しください。",
+        });
       return;
     }
     lastCodeRequestAt.set(`register:${email}`, Date.now());
@@ -685,16 +651,20 @@ app.post("/api/auth/register/verify-code", async (req, res) => {
       verification.consumedAt ||
       verification.expiresAt.getTime() < Date.now()
     ) {
-      res.status(400).json({
-        message: "コードの有効期限が切れています。もう一度送信してください。",
-      });
+      res
+        .status(400)
+        .json({
+          message: "コードの有効期限が切れています。もう一度送信してください。",
+        });
       return;
     }
     if (verification.attempts >= MAX_CODE_ATTEMPTS) {
-      res.status(429).json({
-        message:
-          "試行回数が上限に達しました。もう一度コードを送信してください。",
-      });
+      res
+        .status(429)
+        .json({
+          message:
+            "試行回数が上限に達しました。もう一度コードを送信してください。",
+        });
       return;
     }
     await db.incrementVerificationAttempts(verification.id);
@@ -716,10 +686,12 @@ app.post("/api/auth/register/complete", async (req, res) => {
   try {
     const payload = readVerifyToken(String(req.body.verifyToken || ""));
     if (!payload || payload.purpose !== "register") {
-      res.status(401).json({
-        message:
-          "メール認証が確認できませんでした。最初からやり直してください。",
-      });
+      res
+        .status(401)
+        .json({
+          message:
+            "メール認証が確認できませんでした。最初からやり直してください。",
+        });
       return;
     }
 
@@ -727,10 +699,12 @@ app.post("/api/auth/register/complete", async (req, res) => {
     const password = String(req.body.password || "");
 
     if (!USERNAME_RE.test(username)) {
-      res.status(400).json({
-        message:
-          "ユーザー名は半角英数字・_-. のみ、3〜32文字で入力してください。",
-      });
+      res
+        .status(400)
+        .json({
+          message:
+            "ユーザー名は半角英数字・_-. のみ、3〜32文字で入力してください。",
+        });
       return;
     }
     if (password.length < 8) {
@@ -758,7 +732,17 @@ app.post("/api/auth/register/complete", async (req, res) => {
       payload.email,
       hashSecret(password),
     );
-    await db.createDefaultCategories(user.id, DEFAULT_CATEGORIES);
+    await db.createDefaultCategories(user.id, [
+      ...DEFAULT_EXPENSE_CATEGORIES.map((name) => ({
+        name,
+        kind: "EXPENSE" as const,
+      })),
+      ...DEFAULT_INCOME_CATEGORIES.map((name) => ({
+        name,
+        kind: "INCOME" as const,
+      })),
+    ]);
+    await db.createDefaultPaymentMethods(user.id, DEFAULT_PAYMENT_METHODS);
 
     res.setHeader(
       "Set-Cookie",
@@ -775,14 +759,16 @@ app.post("/api/auth/register/complete", async (req, res) => {
 
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const username = String(req.body.username || "").trim();
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
     const password = String(req.body.password || "");
 
-    const user = await db.findUserByUsername(username);
+    const user = await db.findUserByEmail(email);
     if (!user || !verifySecret(password, user.passwordHash)) {
       res
         .status(401)
-        .json({ message: "ユーザー名またはパスワードが違います。" });
+        .json({ message: "メールアドレスまたはパスワードが違います。" });
       return;
     }
 
@@ -818,9 +804,12 @@ app.post("/api/auth/password-reset/request", async (req, res) => {
 
     const lastRequest = lastCodeRequestAt.get(`reset:${email}`) || 0;
     if (Date.now() - lastRequest < CODE_REQUEST_COOLDOWN_MS) {
-      res.status(429).json({
-        message: "コードを送信しました。1分ほど待ってから再度お試しください。",
-      });
+      res
+        .status(429)
+        .json({
+          message:
+            "コードを送信しました。1分ほど待ってから再度お試しください。",
+        });
       return;
     }
     lastCodeRequestAt.set(`reset:${email}`, Date.now());
@@ -850,16 +839,20 @@ app.post("/api/auth/password-reset/verify", async (req, res) => {
       verification.consumedAt ||
       verification.expiresAt.getTime() < Date.now()
     ) {
-      res.status(400).json({
-        message: "コードの有効期限が切れています。もう一度送信してください。",
-      });
+      res
+        .status(400)
+        .json({
+          message: "コードの有効期限が切れています。もう一度送信してください。",
+        });
       return;
     }
     if (verification.attempts >= MAX_CODE_ATTEMPTS) {
-      res.status(429).json({
-        message:
-          "試行回数が上限に達しました。もう一度コードを送信してください。",
-      });
+      res
+        .status(429)
+        .json({
+          message:
+            "試行回数が上限に達しました。もう一度コードを送信してください。",
+        });
       return;
     }
     await db.incrementVerificationAttempts(verification.id);
@@ -885,10 +878,12 @@ app.post("/api/auth/password-reset/complete", async (req, res) => {
   try {
     const payload = readVerifyToken(String(req.body.verifyToken || ""));
     if (!payload || payload.purpose !== "reset") {
-      res.status(401).json({
-        message:
-          "メール認証が確認できませんでした。最初からやり直してください。",
-      });
+      res
+        .status(401)
+        .json({
+          message:
+            "メール認証が確認できませんでした。最初からやり直してください。",
+        });
       return;
     }
 
@@ -1032,12 +1027,18 @@ app.delete(
 
 app.put("/api/settings", requireAuthApi, async (req, res) => {
   try {
-    const patch: { savingsGoalAmount?: number | null } = {};
+    const patch: {
+      savingsGoalAmount?: number | null;
+      guidesEnabled?: boolean;
+    } = {};
 
     if (req.body.savingsGoalAmount !== undefined) {
       const raw = req.body.savingsGoalAmount;
       patch.savingsGoalAmount =
         raw === null || raw === "" ? null : Math.max(0, clampInt(raw, 0));
+    }
+    if (req.body.guidesEnabled !== undefined) {
+      patch.guidesEnabled = Boolean(req.body.guidesEnabled);
     }
 
     await db.updateUserSettings(req.user!.id, patch);
@@ -1049,6 +1050,36 @@ app.put("/api/settings", requireAuthApi, async (req, res) => {
   }
 });
 
+async function ensureDefaultCategoriesAndPaymentMethods(userId: number) {
+  const [expenseCategories, incomeCategories, methods] = await Promise.all([
+    db.listCategories(userId, "EXPENSE"),
+    db.listCategories(userId, "INCOME"),
+    db.listPaymentMethods(userId),
+  ]);
+
+  if (expenseCategories.length === 0) {
+    await db.createDefaultCategories(
+      userId,
+      DEFAULT_EXPENSE_CATEGORIES.map((name) => ({
+        name,
+        kind: "EXPENSE" as const,
+      })),
+    );
+  }
+  if (incomeCategories.length === 0) {
+    await db.createDefaultCategories(
+      userId,
+      DEFAULT_INCOME_CATEGORIES.map((name) => ({
+        name,
+        kind: "INCOME" as const,
+      })),
+    );
+  }
+  if (methods.length === 0) {
+    await db.createDefaultPaymentMethods(userId, DEFAULT_PAYMENT_METHODS);
+  }
+}
+
 // ---------------- ダッシュボード ----------------
 
 app.get("/", requireAuthPage, async (req, res) => {
@@ -1058,6 +1089,8 @@ app.get("/", requireAuthPage, async (req, res) => {
     const year = Number.parseInt(monthKey.slice(0, 4), 10);
     const savingsGoal = user.savingsGoalAmount ?? 0;
 
+    await ensureDefaultCategoriesAndPaymentMethods(user.id);
+
     const [
       monthSummary,
       yearlyGraph,
@@ -1065,6 +1098,7 @@ app.get("/", requireAuthPage, async (req, res) => {
       splitSessions,
       savings,
       categories,
+      paymentMethods,
     ] = await Promise.all([
       buildMonthSummary(user.id, monthKey),
       getYearlyGraphData(user.id, year),
@@ -1075,6 +1109,7 @@ app.get("/", requireAuthPage, async (req, res) => {
       }),
       buildSavingsAnalytics(user.id, monthKey, savingsGoal),
       db.listCategories(user.id),
+      db.listPaymentMethods(user.id),
     ]);
 
     res.render("index", {
@@ -1096,14 +1131,10 @@ app.get("/", requireAuthPage, async (req, res) => {
         })),
         savings,
         categories,
+        paymentMethods,
         user: userPublicView(user),
       },
-      enums: {
-        transactionKinds,
-        satisfactionLevels,
-        spendingStyles,
-        paymentMethods,
-      },
+      enums: { transactionKinds },
     });
   } catch (error) {
     console.error("画面の読み込みに失敗:", error);
@@ -1263,10 +1294,12 @@ app.post("/api/split-sessions", requireAuthApi, async (req, res) => {
   try {
     const parsed = parseSplitPayload(req.body);
     if (!parsed) {
-      res.status(400).json({
-        message:
-          "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
-      });
+      res
+        .status(400)
+        .json({
+          message:
+            "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
+        });
       return;
     }
     const result = calculateSplitSettlement(
@@ -1280,14 +1313,16 @@ app.post("/api/split-sessions", requireAuthApi, async (req, res) => {
       contributionsText: JSON.stringify(parsed.payments),
       resultText: JSON.stringify(result.transfers),
     });
-    res.status(201).json({
-      session: {
-        ...session,
-        participants: parsed.participants,
-        payments: parsed.payments,
-        result: result.transfers,
-      },
-    });
+    res
+      .status(201)
+      .json({
+        session: {
+          ...session,
+          participants: parsed.participants,
+          payments: parsed.payments,
+          result: result.transfers,
+        },
+      });
   } catch (error) {
     console.error("割り勘計算の保存に失敗:", error);
     res.status(500).json({ message: "割り勘計算の保存に失敗しました。" });
@@ -1299,10 +1334,12 @@ app.put("/api/split-sessions/:id", requireAuthApi, async (req, res) => {
     const id = clampInt(req.params.id);
     const parsed = parseSplitPayload(req.body);
     if (!parsed) {
-      res.status(400).json({
-        message:
-          "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
-      });
+      res
+        .status(400)
+        .json({
+          message:
+            "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
+        });
       return;
     }
     const result = calculateSplitSettlement(
@@ -1348,7 +1385,11 @@ app.delete("/api/split-sessions/:id", requireAuthApi, async (req, res) => {
 
 app.get("/api/categories", requireAuthApi, async (req, res) => {
   try {
-    const categories = await db.listCategories(req.user!.id);
+    const kind =
+      req.query.kind === "INCOME" || req.query.kind === "EXPENSE"
+        ? req.query.kind
+        : undefined;
+    const categories = await db.listCategories(req.user!.id, kind);
     res.json({ items: categories });
   } catch (error) {
     console.error("カテゴリー一覧の取得に失敗:", error);
@@ -1359,12 +1400,18 @@ app.get("/api/categories", requireAuthApi, async (req, res) => {
 app.post("/api/categories", requireAuthApi, async (req, res) => {
   try {
     const name = String(req.body.name || "").trim();
+    const kind = parseEnumValue(req.body.kind, transactionKinds, "EXPENSE");
     if (!name) {
       res.status(400).json({ message: "カテゴリー名を入力してください。" });
       return;
     }
-    const maxOrder = await db.maxCategorySortOrder(req.user!.id);
-    const category = await db.createCategory(req.user!.id, name, maxOrder + 1);
+    const maxOrder = await db.maxCategorySortOrder(req.user!.id, kind);
+    const category = await db.createCategory(
+      req.user!.id,
+      name,
+      kind,
+      maxOrder + 1,
+    );
     res.status(201).json({ category });
   } catch (error) {
     console.error("カテゴリーの追加に失敗:", error);
@@ -1402,6 +1449,71 @@ app.delete("/api/categories/:id", requireAuthApi, async (req, res) => {
   } catch (error) {
     console.error("カテゴリーの削除に失敗:", error);
     res.status(500).json({ message: "カテゴリーの削除に失敗しました。" });
+  }
+});
+
+// ---------------- 支払い方法 ----------------
+
+app.get("/api/payment-methods", requireAuthApi, async (req, res) => {
+  try {
+    const items = await db.listPaymentMethods(req.user!.id);
+    res.json({ items });
+  } catch (error) {
+    console.error("支払い方法一覧の取得に失敗:", error);
+    res.status(500).json({ message: "支払い方法一覧の取得に失敗しました。" });
+  }
+});
+
+app.post("/api/payment-methods", requireAuthApi, async (req, res) => {
+  try {
+    const name = String(req.body.name || "").trim();
+    if (!name) {
+      res.status(400).json({ message: "支払い方法の名前を入力してください。" });
+      return;
+    }
+    const maxOrder = await db.maxPaymentMethodSortOrder(req.user!.id);
+    const method = await db.createPaymentMethod(
+      req.user!.id,
+      name,
+      maxOrder + 1,
+    );
+    res.status(201).json({ method });
+  } catch (error) {
+    console.error("支払い方法の追加に失敗:", error);
+    res.status(500).json({ message: "支払い方法の追加に失敗しました。" });
+  }
+});
+
+app.put("/api/payment-methods/:id", requireAuthApi, async (req, res) => {
+  try {
+    const name = String(req.body.name || "").trim();
+    if (!name) {
+      res.status(400).json({ message: "支払い方法の名前を入力してください。" });
+      return;
+    }
+    const method = await db.updatePaymentMethod(
+      req.user!.id,
+      clampInt(req.params.id),
+      name,
+    );
+    if (!method) {
+      res.status(404).json({ message: "支払い方法が見つかりません。" });
+      return;
+    }
+    res.json({ method });
+  } catch (error) {
+    console.error("支払い方法の更新に失敗:", error);
+    res.status(500).json({ message: "支払い方法の更新に失敗しました。" });
+  }
+});
+
+app.delete("/api/payment-methods/:id", requireAuthApi, async (req, res) => {
+  try {
+    await db.deletePaymentMethod(req.user!.id, clampInt(req.params.id));
+    res.status(204).end();
+  } catch (error) {
+    console.error("支払い方法の削除に失敗:", error);
+    res.status(500).json({ message: "支払い方法の削除に失敗しました。" });
   }
 });
 

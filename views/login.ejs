@@ -229,11 +229,12 @@
         <div id="loginPanel" class="panel-block active">
           <form id="loginForm">
             <div class="field">
-              <label for="loginUsername">ユーザー名</label>
+              <label for="loginEmail">メールアドレス</label>
               <input
-                id="loginUsername"
-                name="username"
-                autocomplete="username"
+                id="loginEmail"
+                name="email"
+                type="email"
+                autocomplete="email"
                 required
               />
             </div>
@@ -464,13 +465,16 @@
         .addEventListener("submit", async (event) => {
           event.preventDefault();
           showError("");
-          const username = document
-            .getElementById("loginUsername")
-            .value.trim();
+          const email = document.getElementById("loginEmail").value.trim();
           const password = document.getElementById("loginPassword").value;
           try {
-            await submitJson("/api/auth/login", { username, password });
-            localStorage.setItem("mp_last_user", username);
+            const data = await submitJson("/api/auth/login", {
+              email,
+              password,
+            });
+            localStorage.setItem("mp_last_email", email);
+            if (data.user?.username)
+              localStorage.setItem("mp_last_user", data.user.username);
             window.location.href = "/";
           } catch (error) {
             showError(error.message);
@@ -547,6 +551,7 @@
               password,
             });
             localStorage.setItem("mp_last_user", username);
+            localStorage.setItem("mp_last_email", pendingRegisterEmail);
             window.location.href = "/";
           } catch (error) {
             showError(error.message);
@@ -663,7 +668,9 @@
           .addEventListener("click", () => {
             biometricBlock.classList.remove("visible");
             mainAuthBlock.style.display = "block";
-            document.getElementById("loginUsername").value = savedUser;
+            const savedEmail = localStorage.getItem("mp_last_email");
+            if (savedEmail)
+              document.getElementById("loginEmail").value = savedEmail;
           });
 
         document

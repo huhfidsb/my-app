@@ -38,18 +38,18 @@
           スクロールは常にページ全体（ブラウザの縦スクロール）で行い、内部の枠だけが
           スクロールすることはありません。実装は #scaleRoot 下部のスクリプトを参照してください。
         */
-        .scale-outer { width: 100%; overflow: hidden; }
-        .scale-root { width: 560px; transform-origin: top center; margin: 0 auto; }
+        .scale-outer { width: 100%; overflow: hidden; position: relative; }
+        .scale-root { width: 420px; transform-origin: top left; }
 
         .shell {
             padding: 18px 0 32px;
         }
 
         .hero { margin-bottom: 14px; }
-        .grid { display: flex; flex-direction: column; gap: 20px; }
+        .grid { display: flex; flex-direction: column; gap: 14px; }
         .pie-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .pie-row { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
-        .stack { display: grid; gap: 16px; }
+        .stack { display: grid; gap: 12px; }
 
         .hero-card,
         .panel {
@@ -60,7 +60,7 @@
             border-radius: var(--radius);
         }
 
-        .hero-card { padding: 28px; overflow: hidden; position: relative; }
+        .hero-card { padding: 18px; overflow: hidden; position: relative; }
         .hero-card::after {
             content: "";
             position: absolute;
@@ -84,23 +84,25 @@
         }
 
         h1, h2, h3, p { margin: 0; }
-        h1 { margin-top: 16px; font-size: 2.4rem; line-height: 1.08; }
-        .hero p { margin-top: 14px; color: var(--muted); line-height: 1.8; }
-        .hero-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 22px; }
-        .stat { border-radius: 18px; padding: 16px; }
+        h1 { margin-top: 10px; font-size: 1.7rem; line-height: 1.15; }
+        .hero p { margin-top: 8px; color: var(--muted); line-height: 1.6; font-size: 0.92rem; }
+        .hero-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+        .stat { border-radius: 14px; padding: 12px; }
         .stat small, .metric .label { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
-        .stat strong, .metric .value { display: block; margin-top: 8px; font-size: 1.35rem; font-weight: 700; }
+        .stat strong, .metric .value { display: block; margin-top: 6px; font-size: 1.05rem; font-weight: 700; }
         .metric input[type="month"] {
             width: 100%; border: 1px solid rgba(19, 34, 56, 0.14); border-radius: 12px;
             padding: 10px 12px; background: rgba(255, 255, 255, 0.94); color: var(--text); font: inherit; font-weight: 700;
         }
 
-        .panel { padding: 20px; }
-        .panel h2 { font-size: 1.15rem; margin-bottom: 14px; }
+        .panel { padding: 16px; }
+        .panel h2 { font-size: 1.02rem; margin-bottom: 10px; }
         .panel h3 { font-size: 0.98rem; margin-bottom: 10px; color: var(--accent); }
         .hint { color: var(--muted); font-size: 0.92rem; line-height: 1.7; margin-bottom: 16px; }
+        /* 使い方ガイド オフのときは .guide-text 要素をすべて隠す（設定パネルのトグルで切替） */
+        body.guides-off .guide-text { display: none !important; }
 
-        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         .field { display: grid; gap: 8px; }
         .field label { font-size: 0.86rem; color: var(--muted); }
         .field input, .field select, .field textarea {
@@ -122,11 +124,14 @@
         /* 各タブごとの年月ナビ（＜ 月 ＞） */
         .month-nav { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
         .month-nav-btn {
-            width: 40px; height: 40px; padding: 0; border-radius: 12px; font-size: 1.1rem;
+            width: 42px; height: 42px; padding: 0; border-radius: 12px; font-size: 1.2rem;
             background: rgba(15, 76, 92, 0.1); color: var(--accent);
         }
-        .month-picker-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
-        .month-picker-bar .month-nav { width: 240px; }
+        .month-nav input[type="month"] {
+            text-align: center; font-size: 1.05rem; font-weight: 800; padding: 10px 6px;
+        }
+        .month-picker-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+        .month-picker-bar .month-nav { flex: 1 1 auto; min-width: 220px; max-width: 340px; }
 
         /* カテゴリー管理（カテゴリー欄の下にインライン表示） */
         .category-inline-manager {
@@ -181,18 +186,26 @@
             border: 6px solid transparent; border-top-color: rgba(19, 34, 56, 0.92);
         }
         canvas { width: 100%; height: 240px; display: block; }
-        .chart-box-large canvas { height: 260px; }
-        .pie { width: 200px; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(#cbd5e1 0deg 360deg); position: relative; }
-        .pie::after { content: ""; position: absolute; inset: 26px; border-radius: 50%; background: #fff; }
+        .chart-box-large canvas { height: 190px; }
+        .pie { width: 148px; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(#cbd5e1 0deg 360deg); position: relative; }
+        .pie::after { content: ""; position: absolute; inset: 20px; border-radius: 50%; background: #fff; }
 
-        .calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-        .calendar-large { gap: 8px; }
-        .calendar-large .day, .calendar-large .weekday { min-height: 64px; }
-        .weekday, .day { min-height: 56px; padding: 8px 6px; border-radius: 12px; }
-        .weekday { min-height: auto; text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); }
-        .day .date { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 10px; }
-        .day .income-day { color: var(--income); font-weight: 700; }
-        .day .expense-day { color: var(--expense); font-weight: 700; }
+        .calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+        .calendar-large { gap: 5px; }
+        .calendar-large .day, .calendar-large .weekday { min-height: 46px; }
+        .weekday, .day {
+            min-height: 42px; padding: 4px 3px; border-radius: 10px;
+            overflow: hidden; /* 万一はみ出しても枠の外には出さない */
+        }
+        .weekday { min-height: auto; text-align: center; font-size: 10px; font-weight: 700; color: var(--muted); }
+        .day .date { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 4px; }
+        .day .income-day,
+        .day .expense-day {
+            font-weight: 700; font-size: 10px; line-height: 1.35;
+            white-space: nowrap; overflow: hidden; max-width: 100%;
+        }
+        .day .income-day { color: var(--income); }
+        .day .expense-day { color: var(--expense); }
         .day.saturday { background: rgba(14, 165, 233, 0.1); }
         .day.sunday, .day.holiday { background: rgba(220, 38, 38, 0.1); }
         .day.empty { background: transparent; border: 1px dashed rgba(19, 34, 56, 0.12); }
@@ -286,6 +299,18 @@
         </div>
 
         <div class="settings-section">
+            <h3>使い方ガイド</h3>
+            <div class="settings-row">
+                <span>説明文を表示する</span>
+                <label class="switch">
+                    <input type="checkbox" id="guidesEnabledToggle" <%= initialData.user.guidesEnabled ? "checked" : "" %>>
+                    <span class="track"></span>
+                </label>
+            </div>
+            <p class="settings-note">オフにすると、画面内の使い方の説明文を非表示にします。</p>
+        </div>
+
+        <div class="settings-section">
             <h3>Face ID・指紋でログイン</h3>
             <p class="settings-note">この端末でWebAuthn（Face ID・指紋・画面ロック等）を使ったログインを許可します。</p>
             <div id="webauthnDeviceList"></div>
@@ -308,7 +333,6 @@
 
         <section class="hero">
             <div class="hero-card">
-                <div class="eyebrow">three-layer finance dashboard</div>
                 <h1>MoneyPilot</h1>
                 <p>家計管理・収支分析・割り勘計算・貯蓄管理をひとつのアプリで。</p>
                 <p>日々の支出・収入を記録し、月ごとの分析やカレンダー表示でお金の流れを可視化します。</p>
@@ -335,11 +359,9 @@
                 <div class="stack">
                     <section class="panel">
                         <h2>支出・収入の記録</h2>
-                        <p class="hint">上のボタンで支出・収入をワンタッチで切り替えられます。金額、日付、カテゴリー、支払い方法、満足度、投資・消費・浪費をまとめて送信します。</p>
 
                         <form id="transactionForm">
                             <div class="field span-2" style="margin-bottom: 14px;">
-                                <label>区分</label>
                                 <div class="kind-toggle">
                                     <button type="button" class="kind-btn active" data-kind="EXPENSE">支出</button>
                                     <button type="button" class="kind-btn" data-kind="INCOME">収入</button>
@@ -361,7 +383,6 @@
                                     <select id="category" name="category" required></select>
 
                                     <div class="category-inline-manager" id="categoryInlineManager" style="display: none;">
-                                        <p class="muted" style="margin-bottom: 8px;">名前を書き換えると変更されます。×を押すと削除できます（確認あり）。一番下から新しいカテゴリーを追加できます。</p>
                                         <div class="category-manager" id="categoryManagerList"></div>
                                         <div class="category-manage-row" style="margin-top: 8px;">
                                             <input type="text" id="newCategoryInput" placeholder="新しいカテゴリー名">
@@ -374,21 +395,18 @@
                                 </div>
                                 <div class="field">
                                     <label for="paymentMethod">支払い方法</label>
-                                    <select id="paymentMethod" name="paymentMethod">
-                                        <% enums.paymentMethods.forEach((method) => { %><option value="<%= method %>"><%= method %></option><% }) %>
-                                    </select>
-                                </div>
-                                <div class="field">
-                                    <label for="satisfaction">満足度</label>
-                                    <select id="satisfaction" name="satisfaction">
-                                        <% enums.satisfactionLevels.forEach((level) => { %><option value="<%= level %>"><%= level %></option><% }) %>
-                                    </select>
-                                </div>
-                                <div class="field">
-                                    <label for="spendingStyle">投資・消費・浪費</label>
-                                    <select id="spendingStyle" name="spendingStyle">
-                                        <% enums.spendingStyles.forEach((style) => { %><option value="<%= style %>"><%= style %></option><% }) %>
-                                    </select>
+                                    <select id="paymentMethod" name="paymentMethod" required></select>
+
+                                    <div class="category-inline-manager" id="paymentMethodInlineManager" style="display: none;">
+                                        <div class="category-manager" id="paymentMethodManagerList"></div>
+                                        <div class="category-manage-row" style="margin-top: 8px;">
+                                            <input type="text" id="newPaymentMethodInput" placeholder="新しい支払い方法">
+                                            <button type="button" class="secondary btn-sm" id="addPaymentMethodBtn">追加</button>
+                                        </div>
+                                        <div class="actions" style="margin-top: 10px;">
+                                            <button type="button" class="secondary btn-sm" id="closePaymentMethodManager">完了して選択に戻る</button>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="field span-2">
                                     <label for="memo">メモ</label>
@@ -407,7 +425,6 @@
                 <div class="stack">
                     <section class="panel">
                         <h2>記録一覧</h2>
-                        <p class="hint">このタブだけの年月選択です。他のタブの年月とは連動しません。各記録の「編集」を押すとフォームに内容が読み込まれ、更新できます。</p>
 
                         <div class="month-picker-bar">
                             <div class="month-nav">
@@ -442,14 +459,12 @@
                         <div class="stat"><small>支出</small><strong id="analysisExpense">-</strong></div>
                         <div class="stat"><small>収支</small><strong id="analysisBalance">-</strong></div>
                         <div class="stat"><small>平均日次支出</small><strong id="averageDailyExpense">-</strong></div>
-                        <div class="stat"><small>満足度</small><strong id="satisfactionSummary">-</strong></div>
-                        <div class="stat"><small>浪費比率</small><strong id="spendingStyleSummary">-</strong></div>
                     </div>
                 </section>
 
                 <section class="panel">
                     <h2>月次収支グラフ</h2>
-                    <p class="hint">選択中の年月が含まれる年の、収入・支出を月ごとに自動で描画します。青が収入、赤が支出です。棒にカーソルを合わせる（またはタップする）と金額が吹き出しで表示されます。</p>
+                    <p class="hint guide-text">棒をタップ／クリックすると金額が表示されます。</p>
                     <div class="chart-box chart-box-large">
                         <canvas id="monthlyChart"></canvas>
                         <div class="chart-tooltip" id="chartTooltip" style="display: none;"></div>
@@ -459,7 +474,7 @@
 
                 <section class="panel">
                     <h2>カレンダー</h2>
-                    <p class="hint">選択中の月を表示しています。日ごとの支出は赤、収入は青で色分けし、土曜日は水色、日曜と祝日は紅色で強調します。日付をクリックすると、その日の記録一覧が下に表示されます。</p>
+                    <p class="hint guide-text">日付をタップすると、その日の記録が下に表示されます。</p>
                     <div class="calendar calendar-large" id="calendar"></div>
 
                     <div class="day-detail" id="dayDetail" style="margin-top: 16px; display: none;">
@@ -495,7 +510,6 @@
                 <div class="stack">
                     <section class="panel">
                         <h2>割り勘機能</h2>
-                        <p class="hint">参加者を登録し、「誰が」「いくら」「誰の分を」払ったかを支払い明細として入力すると、最終的に誰が誰にいくら払えばよいかを自動計算します。1人が他の人数分だけまとめて支払った場合は、対象者のチェックを絞ってください（未チェックのままなら参加者全員が対象になります）。</p>
 
                         <form id="splitForm">
                             <div class="field span-2">
@@ -510,7 +524,7 @@
                             </div>
 
                             <h3 style="margin-top: 24px;">支払い明細（追加済み）</h3>
-                            <p class="hint" style="margin-bottom: 10px;">下のフォームで内容を入力し「追加する」を押すと、ここに一覧として積み上がっていきます。内容を直したいときは各行の「編集」を押してください。</p>
+                            <p class="hint guide-text" style="margin-bottom: 10px;">下のフォームで内容を入力し「追加する」を押すと、ここに一覧として積み上がっていきます。内容を直したいときは各行の「編集」を押してください。</p>
                             <div class="payments-list split-list" id="paymentsList"></div>
 
                             <div class="payment-editor" style="margin-top: 16px;" id="paymentEditor">
@@ -546,7 +560,6 @@
                 <div class="stack">
                     <section class="panel">
                         <h2>割り勘の記録</h2>
-                        <p class="hint">このタブだけの年月選択です（記録が作られた月で絞り込みます）。「編集」を押すと左のフォームに内容が読み込まれ、支払いを追加・修正して再計算できます。</p>
 
                         <div class="month-picker-bar">
                             <div class="month-nav">
@@ -567,7 +580,6 @@
                 <div class="stack">
                     <section class="panel">
                         <h2>貯蓄額と目標</h2>
-                        <p class="hint">これまでに記録したすべての収入・支出から、貯蓄額（収入合計 − 支出合計）を自動計算します。目標額を設定すると達成率も確認できます。</p>
 
                         <div class="hero-grid">
                             <div class="stat"><small>現在の貯蓄額</small><strong id="currentSavings">-</strong></div>
@@ -592,7 +604,6 @@
 
                     <section class="panel">
                         <h2>選択月の貯蓄率</h2>
-                        <p class="hint">貯蓄率 = （収入 − 支出）÷ 収入 × 100。収入のうちどれだけを貯蓄に回せたかの割合です。このタブだけの年月選択です。</p>
 
                         <div class="month-picker-bar">
                             <div class="month-nav">
@@ -613,7 +624,6 @@
                 <div class="stack">
                     <section class="panel">
                         <h2>カテゴリ別 節約率</h2>
-                        <p class="hint">選択中の月と前月の支出をカテゴリごとに比較します。プラスは前月より支出が減った（節約できた）、マイナスは支出が増えたことを示します。</p>
                         <div class="list" id="categorySavingsList"></div>
                     </section>
                 </div>
@@ -628,20 +638,24 @@
 
     <script>
         // ---------------- 画面サイズに合わせた拡大縮小（配置はどの画面でも同じ） ----------------
-        // 基準デザイン幅(560px)で組んだレイアウトを、画面の横幅に応じてまるごと拡大縮小します。
-        // スマホの縦長画面ではそのまま近い縮尺で、PCの横長画面では横幅に合わせて大きく表示され、
-        // その分すべての要素が縦方向にも大きくなるため、ページ全体を縦スクロールして見る形になります。
+        // スマホサイズを基準にレイアウトを組み、画面の横幅に応じて拡大縮小します。
+        // PCなど横幅が広い画面では、スマホ版に近いサイズのまま中央表示し、左右に余白ができます
+        // （拡大率の上限 MAX_SCALE を超えて大きくはなりません）。
+        // 中央寄せは margin:auto ではなく translateX で計算しているので、画面幅にかかわらず
+        // 左右どちらにもずれず、常に画面中央に収まります。
         (function setupScaleToFit() {
-            const BASE_WIDTH = 560;
-            const MIN_SCALE = 0.6;
-            const MAX_SCALE = 1.85; // 極端に大きな画面で文字が巨大化しすぎないための上限（好みで調整可）
+            const BASE_WIDTH = 420;
+            const MIN_SCALE = 0.82;
+            const MAX_SCALE = 1.3; // これ以上大きくしたくない場合はこの値を調整してください
             const scaleOuter = document.getElementById("scaleOuter");
             const scaleRoot = document.getElementById("scaleRoot");
             let currentScale = 1;
 
             function computeScale() {
-                const viewportWidth = window.innerWidth;
-                return Math.min(MAX_SCALE, Math.max(MIN_SCALE, viewportWidth / BASE_WIDTH));
+                // window.innerWidth はスクロールバー分を含むことがあるため、実際のレイアウト幅
+                // （document.documentElement.clientWidth）を使って計算のズレを防ぐ
+                const availableWidth = document.documentElement.clientWidth;
+                return Math.min(MAX_SCALE, Math.max(MIN_SCALE, availableWidth / BASE_WIDTH));
             }
 
             function applyHeight() {
@@ -650,7 +664,10 @@
 
             function applyScale() {
                 currentScale = computeScale();
-                scaleRoot.style.transform = `scale(${currentScale})`;
+                const availableWidth = document.documentElement.clientWidth;
+                const scaledWidth = BASE_WIDTH * currentScale;
+                const offsetX = (availableWidth - scaledWidth) / 2;
+                scaleRoot.style.transform = `translateX(${offsetX}px) scale(${currentScale})`;
                 applyHeight();
             }
 
@@ -694,6 +711,9 @@
             categoryManagerList: document.getElementById("categoryManagerList"),
             categoryInlineManager: document.getElementById("categoryInlineManager"),
             categorySelect: document.getElementById("category"),
+            paymentMethodManagerList: document.getElementById("paymentMethodManagerList"),
+            paymentMethodInlineManager: document.getElementById("paymentMethodInlineManager"),
+            paymentMethodSelect: document.getElementById("paymentMethod"),
             transactionForm: document.getElementById("transactionForm"),
             splitForm: document.getElementById("splitForm"),
             recordMonth: document.getElementById("recordMonth"),
@@ -703,6 +723,7 @@
         };
 
         let categories = initialData.categories || [];
+        let paymentMethods = initialData.paymentMethods || [];
 
         function api(path, options = {}) {
             return fetch(path, {
@@ -735,10 +756,11 @@
                 btn.classList.add("active");
                 document.getElementById(btn.dataset.tab).classList.add("active");
 
-                // canvasは非表示(display:none)の間は幅0で描画されてしまうため、
-                // 分析タブが表示された直後に描き直す
+                // canvasとカレンダーの文字サイズ調整は非表示(display:none)の間は幅0で計算されてしまうため、
+                // 分析タブが表示された直後にやり直す
                 if (btn.dataset.tab === "tab-analysis") {
                     renderMonthlyChart(latestMonthlyGraph);
+                    fitCalendarAmounts();
                 }
             });
         });
@@ -749,6 +771,8 @@
                 document.querySelectorAll(".kind-btn").forEach((b) => b.classList.remove("active"));
                 btn.classList.add("active");
                 document.getElementById("kind").value = btn.dataset.kind;
+                lastCategoryValue = "";
+                closeCategoryManager();
             });
         });
 
@@ -757,9 +781,18 @@
         const MANAGE_CATEGORY_VALUE = "__manage_categories__";
         let lastCategoryValue = "";
 
+        function currentKind() {
+            return document.getElementById("kind").value === "INCOME" ? "INCOME" : "EXPENSE";
+        }
+
+        function categoriesForCurrentKind() {
+            return categories.filter((category) => category.kind === currentKind());
+        }
+
         function renderCategoryManagerList() {
-            elements.categoryManagerList.innerHTML = categories.length
-                ? categories.map((category) => `
+            const list = categoriesForCurrentKind();
+            elements.categoryManagerList.innerHTML = list.length
+                ? list.map((category) => `
                     <div class="category-manage-row">
                         <input type="text" class="category-manage-input" value="${escapeHtml(category.name)}" data-id="${category.id}">
                         <button type="button" class="remove-btn category-manage-delete" data-id="${category.id}" title="このカテゴリーを削除">×</button>
@@ -771,7 +804,7 @@
         function populateCategorySelect(preferredValue) {
             const select = elements.categorySelect;
             const previous = preferredValue !== undefined ? preferredValue : select.value;
-            const names = categories.map((category) => category.name);
+            const names = categoriesForCurrentKind().map((category) => category.name);
             const options = previous && !names.includes(previous) && previous !== MANAGE_CATEGORY_VALUE ? [...names, previous] : names;
             select.innerHTML = options.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")
                 + `<option value="${MANAGE_CATEGORY_VALUE}">（追加・編集）</option>`;
@@ -779,7 +812,13 @@
                 select.value = previous;
                 lastCategoryValue = previous;
             } else if (names.length) {
+                select.value = names[0];
                 lastCategoryValue = select.value;
+            }
+            // 該当区分にカテゴリーが1つもない場合、選択肢が「（追加・編集）」だけになり
+            // ユーザーが選んでも change イベントが発火せず操作できなくなるため、自動的に管理欄を開く
+            if (names.length === 0 && elements.categoryInlineManager.style.display !== "block") {
+                openCategoryManager();
             }
         }
 
@@ -839,7 +878,7 @@
             const input = document.getElementById("newCategoryInput");
             const name = input.value.trim();
             if (!name) return;
-            await api("/api/categories", { method: "POST", body: JSON.stringify({ name }) });
+            await api("/api/categories", { method: "POST", body: JSON.stringify({ name, kind: currentKind() }) });
             input.value = "";
             lastCategoryValue = name;
             await loadCategories(name);
@@ -847,6 +886,105 @@
         });
 
         document.getElementById("closeCategoryManager").addEventListener("click", closeCategoryManager);
+
+        // --- 支払い方法の管理（カテゴリーと同じ仕組み。支出・収入で共通の1つのリスト） ---
+        const MANAGE_PAYMENT_METHOD_VALUE = "__manage_payment_methods__";
+        let lastPaymentMethodValue = "";
+
+        function renderPaymentMethodManagerList() {
+            elements.paymentMethodManagerList.innerHTML = paymentMethods.length
+                ? paymentMethods.map((method) => `
+                    <div class="category-manage-row">
+                        <input type="text" class="payment-method-manage-input" value="${escapeHtml(method.name)}" data-id="${method.id}">
+                        <button type="button" class="remove-btn payment-method-manage-delete" data-id="${method.id}" title="この支払い方法を削除">×</button>
+                    </div>
+                `).join("")
+                : '<span class="muted">支払い方法がまだありません。下の欄から追加してください。</span>';
+        }
+
+        function populatePaymentMethodSelect(preferredValue) {
+            const select = elements.paymentMethodSelect;
+            const previous = preferredValue !== undefined ? preferredValue : select.value;
+            const names = paymentMethods.map((method) => method.name);
+            const options = previous && !names.includes(previous) && previous !== MANAGE_PAYMENT_METHOD_VALUE ? [...names, previous] : names;
+            select.innerHTML = options.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")
+                + `<option value="${MANAGE_PAYMENT_METHOD_VALUE}">（追加・編集）</option>`;
+            if (previous && options.includes(previous)) {
+                select.value = previous;
+                lastPaymentMethodValue = previous;
+            } else if (names.length) {
+                select.value = names[0];
+                lastPaymentMethodValue = select.value;
+            }
+            if (names.length === 0 && elements.paymentMethodInlineManager.style.display !== "block") {
+                openPaymentMethodManager();
+            }
+        }
+
+        async function loadPaymentMethods(preferredValue) {
+            const data = await api("/api/payment-methods");
+            paymentMethods = data.items;
+            renderPaymentMethodManagerList();
+            populatePaymentMethodSelect(preferredValue);
+        }
+
+        function openPaymentMethodManager() {
+            elements.paymentMethodInlineManager.style.display = "block";
+            elements.paymentMethodSelect.style.display = "none";
+            renderPaymentMethodManagerList();
+        }
+
+        function closePaymentMethodManager() {
+            elements.paymentMethodInlineManager.style.display = "none";
+            elements.paymentMethodSelect.style.display = "";
+            populatePaymentMethodSelect(lastPaymentMethodValue);
+        }
+
+        elements.paymentMethodSelect.addEventListener("change", () => {
+            if (elements.paymentMethodSelect.value === MANAGE_PAYMENT_METHOD_VALUE) {
+                openPaymentMethodManager();
+            } else {
+                lastPaymentMethodValue = elements.paymentMethodSelect.value;
+            }
+        });
+
+        elements.paymentMethodManagerList.addEventListener("change", async (event) => {
+            if (!event.target.classList.contains("payment-method-manage-input")) return;
+            const id = event.target.dataset.id;
+            const name = event.target.value.trim();
+            if (!name) {
+                alert("支払い方法の名前を入力してください。");
+                await loadPaymentMethods();
+                renderPaymentMethodManagerList();
+                return;
+            }
+            await api(`/api/payment-methods/${id}`, { method: "PUT", body: JSON.stringify({ name }) });
+            await loadPaymentMethods();
+            renderPaymentMethodManagerList();
+        });
+
+        elements.paymentMethodManagerList.addEventListener("click", async (event) => {
+            const deleteBtn = event.target.closest(".payment-method-manage-delete");
+            if (!deleteBtn) return;
+            if (confirm("本当にこの支払い方法を削除しますか？（過去の記録の支払い方法名はそのまま残ります）")) {
+                await api(`/api/payment-methods/${deleteBtn.dataset.id}`, { method: "DELETE" });
+                await loadPaymentMethods();
+                renderPaymentMethodManagerList();
+            }
+        });
+
+        document.getElementById("addPaymentMethodBtn").addEventListener("click", async () => {
+            const input = document.getElementById("newPaymentMethodInput");
+            const name = input.value.trim();
+            if (!name) return;
+            await api("/api/payment-methods", { method: "POST", body: JSON.stringify({ name }) });
+            input.value = "";
+            lastPaymentMethodValue = name;
+            await loadPaymentMethods(name);
+            renderPaymentMethodManagerList();
+        });
+
+        document.getElementById("closePaymentMethodManager").addEventListener("click", closePaymentMethodManager);
 
         // --- ＜ 月 ＞ ワンタッチ月切り替え（タブごとに独立）---
         function shiftMonthKey(monthKey, delta) {
@@ -940,7 +1078,7 @@
                             </div>
                             <div class="amount ${item.kind === "INCOME" ? "income" : "expense"}">${item.kind === "INCOME" ? "+" : "-"}${item.amountLabel}</div>
                         </div>
-                        <p class="muted" style="margin-top: 10px;">${item.occurredAt} / ${escapeHtml(item.paymentMethod)} / 満足度:${escapeHtml(item.satisfaction)} / 区分:${escapeHtml(item.spendingStyle)}</p>
+                        <p class="muted" style="margin-top: 10px;">${item.occurredAt} / ${escapeHtml(item.paymentMethod)}</p>
                         <div class="entry-actions">
                             <button type="button" class="secondary btn-sm edit-transaction" data-id="${item.id}">編集</button>
                             <button type="button" class="danger btn-sm delete-transaction" data-id="${item.id}">削除</button>
@@ -988,12 +1126,13 @@
                 return `
                     <div class="${classes.join(" ")}" data-date="${row.dateKey}">
                         <div class="date"><span>${row.day}</span><span>${weekdayLabels[row.weekday]}</span></div>
-                        <div class="income-day">+${row.income ? currencyFormatter.format(row.income) : 0}</div>
-                        <div class="expense-day">-${row.expense ? currencyFormatter.format(row.expense) : 0}</div>
+                        ${row.income ? `<div class="income-day">+${currencyFormatter.format(row.income)}</div>` : ""}
+                        ${row.expense ? `<div class="expense-day">-${currencyFormatter.format(row.expense)}</div>` : ""}
                     </div>
                 `;
             }).join("");
             elements.calendar.innerHTML = `${weekdayHeader}${leadingEmpty}${days}`;
+            fitCalendarAmounts();
 
             if (selectedDayKey && rows.some((row) => row.dateKey === selectedDayKey)) {
                 renderDayDetail(selectedDayKey);
@@ -1001,6 +1140,18 @@
                 selectedDayKey = null;
                 document.getElementById("dayDetail").style.display = "none";
             }
+        }
+
+        // 金額の桁数が多いなどでカレンダーの枠からはみ出しそうな場合、文字を少しずつ小さくして収める
+        function fitCalendarAmounts() {
+            document.querySelectorAll("#calendar .income-day, #calendar .expense-day").forEach((el) => {
+                let fontSize = 10;
+                el.style.fontSize = `${fontSize}px`;
+                while (el.scrollWidth > el.clientWidth && fontSize > 6) {
+                    fontSize -= 0.5;
+                    el.style.fontSize = `${fontSize}px`;
+                }
+            });
         }
 
         function renderDayDetail(dateKey) {
@@ -1048,13 +1199,15 @@
             const canvas = elements.monthlyChart;
             const context = canvas.getContext("2d");
             const dpr = window.devicePixelRatio || 1;
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
+            // canvas.getBoundingClientRect() はページ全体の拡大縮小（画面サイズに合わせた表示調整）の
+            // 影響を受けた「見た目上のサイズ」を返してしまうため、常に一定のローカル座標系である
+            // offsetWidth/offsetHeight を使う（tooltip位置計算(showChartTooltip)と単位を揃えるため）。
+            const width = canvas.offsetWidth;
+            const height = canvas.offsetHeight;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
             context.scale(dpr, dpr);
 
-            const width = rect.width;
-            const height = rect.height;
             context.clearRect(0, 0, width, height);
 
             const padding = { top: 18, right: 16, bottom: 36, left: 34 };
@@ -1110,9 +1263,12 @@
 
         function showChartTooltip(barRect) {
             const tooltip = elements.chartTooltip;
+            const canvas = elements.monthlyChart;
             tooltip.textContent = `${barRect.label}: ${formatAmount(barRect.amount)}`;
-            tooltip.style.left = `${barRect.x + barRect.width / 2}px`;
-            tooltip.style.top = `${barRect.y}px`;
+            // barRect の座標はキャンバス内のローカル座標。吹き出しは .chart-box 基準の絶対配置なので、
+            // キャンバス自身のオフセット（.chart-box のpadding分など）を足してからずれを解消する。
+            tooltip.style.left = `${canvas.offsetLeft + barRect.x + barRect.width / 2}px`;
+            tooltip.style.top = `${canvas.offsetTop + barRect.y}px`;
             tooltip.style.display = "block";
         }
 
@@ -1123,9 +1279,8 @@
         }
 
         function handleChartPointer(event) {
-            const canvasRect = elements.monthlyChart.getBoundingClientRect();
-            const x = event.clientX - canvasRect.left;
-            const y = event.clientY - canvasRect.top;
+            const x = event.offsetX;
+            const y = event.offsetY;
             const barRect = findChartBarAt(x, y);
             // 別の棒を指したら古い吹き出しは自動的に消え、新しい方だけが表示される（要素は1つだけなので置き換わる）
             if (barRect) {
@@ -1185,8 +1340,6 @@
             document.getElementById("analysisExpense").textContent = formatAmount(summary.totals.expense);
             document.getElementById("analysisBalance").textContent = formatAmount(summary.totals.balance);
             document.getElementById("averageDailyExpense").textContent = formatAmount(summary.totals.averageDailyExpense);
-            document.getElementById("satisfactionSummary").textContent = summary.satisfactionBreakdown.length ? summary.satisfactionBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") : "未記録";
-            document.getElementById("spendingStyleSummary").textContent = summary.spendingStyleBreakdown.length ? summary.spendingStyleBreakdown.map((item) => `${item.label}:${item.count}`).join(" / ") : "未記録";
             renderCategoryPie(summary.categoryBreakdown, elements.expenseCategoryPie, elements.expenseCategoryLegend, "支出データなし");
             renderCategoryPie(summary.incomeCategoryBreakdown, elements.incomeCategoryPie, elements.incomeCategoryLegend, "収入データなし");
             latestAnalysisTransactions = summary.transactions || [];
@@ -1383,6 +1536,8 @@
             delete elements.transactionForm.dataset.editingId;
             document.getElementById("kind").value = "EXPENSE";
             document.querySelectorAll(".kind-btn").forEach((b) => b.classList.toggle("active", b.dataset.kind === "EXPENSE"));
+            populateCategorySelect();
+            populatePaymentMethodSelect();
             document.getElementById("transactionSubmitBtn").textContent = "保存する";
             document.getElementById("cancelEditTransaction").style.display = "none";
         }
@@ -1394,9 +1549,7 @@
             document.getElementById("amount").value = item.amount;
             document.getElementById("occurredAt").value = item.occurredAt;
             populateCategorySelect(item.category);
-            document.getElementById("paymentMethod").value = item.paymentMethod;
-            document.getElementById("satisfaction").value = item.satisfaction;
-            document.getElementById("spendingStyle").value = item.spendingStyle;
+            populatePaymentMethodSelect(item.paymentMethod);
             document.getElementById("memo").value = item.memo || "";
             document.getElementById("transactionSubmitBtn").textContent = "更新する";
             document.getElementById("cancelEditTransaction").style.display = "inline-flex";
@@ -1570,6 +1723,8 @@
         initializeSplitForm();
         renderCategoryManagerList();
         populateCategorySelect();
+        renderPaymentMethodManagerList();
+        populatePaymentMethodSelect();
         renderTransactions(initialData.transactions);
         renderAnalysisSummary(initialData.monthSummary);
         renderMonthlyChart(initialData.yearlyGraph);
@@ -1598,6 +1753,23 @@
         document.getElementById("logoutBtn").addEventListener("click", async () => {
             await api("/api/auth/logout", { method: "POST" }).catch(() => {});
             window.location.href = "/login";
+        });
+
+        // --- 使い方ガイド オン/オフ ---
+        if (!initialData.user.guidesEnabled) {
+            document.body.classList.add("guides-off");
+        }
+        document.getElementById("guidesEnabledToggle").addEventListener("change", async (event) => {
+            const enabled = event.target.checked;
+            document.body.classList.toggle("guides-off", !enabled);
+            try {
+                await api("/api/settings", { method: "PUT", body: JSON.stringify({ guidesEnabled: enabled }) });
+                initialData.user.guidesEnabled = enabled;
+            } catch (error) {
+                alert(error.message);
+                event.target.checked = !enabled;
+                document.body.classList.toggle("guides-off", enabled);
+            }
         });
 
         document.getElementById("saveSettingsGoalBtn").addEventListener("click", async () => {
@@ -1680,6 +1852,7 @@
                 await api("/api/auth/webauthn/register", { method: "POST", body: JSON.stringify({ credentialId, label }) });
 
                 localStorage.setItem("mp_last_user", initialData.user.username);
+                localStorage.setItem("mp_last_email", initialData.user.email);
                 localStorage.setItem("mp_webauthn_credential_id", credentialId);
 
                 alert("この端末でFace ID／指紋によるログインを設定しました。");

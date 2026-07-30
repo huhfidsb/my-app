@@ -8,12 +8,14 @@ CREATE TABLE IF NOT EXISTS users (
   email               TEXT UNIQUE NOT NULL,
   password_hash       TEXT NOT NULL,
   savings_goal_amount INTEGER,
+  guides_enabled      BOOLEAN NOT NULL DEFAULT TRUE,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 旧バージョン（PIN・分析タブ表示切替）からのアップグレード用。存在しない環境でもエラーになりません。
+-- 旧バージョンからのアップグレード用。存在しない環境でもエラーになりません。
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS guides_enabled BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE users DROP COLUMN IF EXISTS pin_hash;
 ALTER TABLE users DROP COLUMN IF EXISTS pin_enabled;
 ALTER TABLE users DROP COLUMN IF EXISTS analytics_enabled;
@@ -47,9 +49,22 @@ CREATE TABLE IF NOT EXISTS categories (
   id         SERIAL PRIMARY KEY,
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name       TEXT NOT NULL,
+  kind       TEXT NOT NULL DEFAULT 'EXPENSE', -- 'EXPENSE' | 'INCOME'
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- 旧バージョン（支出・収入で共通のカテゴリー一覧）からのアップグレード用
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'EXPENSE';
+CREATE INDEX IF NOT EXISTS categories_user_kind_idx ON categories(user_id, kind);
+
+CREATE TABLE IF NOT EXISTS payment_methods (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS payment_methods_user_idx ON payment_methods(user_id);
 
 CREATE TABLE IF NOT EXISTS transactions (
   id                SERIAL PRIMARY KEY,
@@ -59,8 +74,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   occurred_at       TIMESTAMPTZ NOT NULL,
   category          TEXT NOT NULL,
   payment_method    TEXT NOT NULL,
-  satisfaction      TEXT NOT NULL DEFAULT 'NORMAL',
-  spending_style    TEXT NOT NULL DEFAULT 'CONSUMPTION',
   memo              TEXT,
   receipt_image_url TEXT,
   receipt_text      TEXT,
@@ -68,6 +81,9 @@ CREATE TABLE IF NOT EXISTS transactions (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS transactions_user_id_idx ON transactions(user_id);
+-- 旧バージョン（満足度・投資消費浪費の記録）からのアップグレード用
+ALTER TABLE transactions DROP COLUMN IF EXISTS satisfaction;
+ALTER TABLE transactions DROP COLUMN IF EXISTS spending_style;
 
 CREATE TABLE IF NOT EXISTS split_settlements (
   id                  SERIAL PRIMARY KEY,

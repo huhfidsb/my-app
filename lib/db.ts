@@ -16,6 +16,7 @@ export type UserRow = {
   email: string;
   passwordHash: string;
   savingsGoalAmount: number | null;
+  guidesEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -28,8 +29,6 @@ export type TransactionRow = {
   occurredAt: Date;
   category: string;
   paymentMethod: string;
-  satisfaction: string;
-  spendingStyle: string;
   memo: string | null;
   receiptImageUrl: string | null;
   receiptText: string | null;
@@ -50,6 +49,15 @@ export type SplitSettlementRow = {
 };
 
 export type CategoryRow = {
+  id: number;
+  userId: number;
+  name: string;
+  kind: "EXPENSE" | "INCOME";
+  sortOrder: number;
+  createdAt: Date;
+};
+
+export type PaymentMethodRow = {
   id: number;
   userId: number;
   name: string;
@@ -75,6 +83,7 @@ function mapUser(row: any): UserRow {
     passwordHash: row.password_hash,
     savingsGoalAmount:
       row.savings_goal_amount === null ? null : Number(row.savings_goal_amount),
+    guidesEnabled: row.guides_enabled,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -89,8 +98,6 @@ function mapTransaction(row: any): TransactionRow {
     occurredAt: row.occurred_at,
     category: row.category,
     paymentMethod: row.payment_method,
-    satisfaction: row.satisfaction,
-    spendingStyle: row.spending_style,
     memo: row.memo,
     receiptImageUrl: row.receipt_image_url,
     receiptText: row.receipt_text,
@@ -118,6 +125,7 @@ function mapCategory(row: any): CategoryRow {
     id: row.id,
     userId: row.user_id,
     name: row.name,
+    kind: row.kind,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
   };
@@ -132,6 +140,16 @@ function mapCredential(row: any): WebauthnCredentialRow {
     label: row.label,
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at,
+  };
+}
+
+function mapPaymentMethod(row: any): PaymentMethodRow {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
   };
 }
 
@@ -179,12 +197,24 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
 
 export async function updateUserSettings(
   userId: number,
-  settings: { savingsGoalAmount?: number | null },
+  settings: { savingsGoalAmount?: number | null; guidesEnabled?: boolean },
 ) {
-  if (settings.savingsGoalAmount === undefined) return;
+  const fields: string[] = [];
+  const values: unknown[] = [userId];
+
+  if (settings.savingsGoalAmount !== undefined) {
+    values.push(settings.savingsGoalAmount);
+    fields.push(`savings_goal_amount = $${values.length}`);
+  }
+  if (settings.guidesEnabled !== undefined) {
+    values.push(settings.guidesEnabled);
+    fields.push(`guides_enabled = $${values.length}`);
+  }
+  if (fields.length === 0) return;
+
   await pool.query(
-    "UPDATE users SET savings_goal_amount = $2, updated_at = now() WHERE id = $1",
-    [userId, settings.savingsGoalAmount],
+    `UPDATE users SET ${fields.join(", ")}, updated_at = now() WHERE id = $1`,
+    values,
   );
 }
 
@@ -306,9 +336,19 @@ export async function deleteCredential(userId: number, id: number) {
 
 // ---------- categories ----------
 
-export async function listCategories(userId: number): Promise<CategoryRow[]> {
+export async function listCategories(
+  userId: number,
+  kind?: "EXPENSE" | "INCOME",
+): Promise<CategoryRow[]> {
+  if (kind) {
+    const { rows } = await pool.query(
+      "SELECT * FROM categories WHERE user_id = $1 AND kind = $2 ORDER BY sort_order ASC, id ASC",
+      [userId, kind],
+    );
+    return rows.map(mapCategory);
+  }
   const { rows } = await pool.query(
-    "SELECT * FROM categories WHERE user_id = $1 ORDER BY sort_order ASC, id ASC",
+    "SELECT * FROM categories WHERE user_id = $1 ORDER BY kind ASC, sort_order ASC, id ASC",
     [userId],
   );
   return rows.map(mapCategory);
@@ -322,11 +362,17 @@ export async function countCategories(userId: number): Promise<number> {
   return rows[0].c;
 }
 
-export async function createDefaultCategories(userId: number, names: string[]) {
-  for (let i = 0; i < names.length; i += 1) {
+export async function createDefaultCategories(
+  userId: number,
+  categories: { name: string; kind: "EXPENSE" | "INCOME" }[],
+) {
+  const countByKind = new Map<string, number>();
+  for (const { name, kind } of categories) {
+    const sortOrder = countByKind.get(kind) ?? 0;
+    countByKind.set(kind, sortOrder + 1);
     await pool.query(
-      "INSERT INTO categories (user_id, name, sort_order) VALUES ($1, $2, $3)",
-      [userId, names[i], i],
+      "INSERT INTO categories (user_id, name, kind, sort_order) VALUES ($1, $2, $3, $4)",
+      [userId, name, kind, sortOrder],
     );
   }
 }
@@ -334,11 +380,12 @@ export async function createDefaultCategories(userId: number, names: string[]) {
 export async function createCategory(
   userId: number,
   name: string,
+  kind: "EXPENSE" | "INCOME",
   sortOrder: number,
 ): Promise<CategoryRow> {
   const { rows } = await pool.query(
-    "INSERT INTO categories (user_id, name, sort_order) VALUES ($1, $2, $3) RETURNING *",
-    [userId, name, sortOrder],
+    "INSERT INTO categories (user_id, name, kind, sort_order) VALUES ($1, $2, $3, $4) RETURNING *",
+    [userId, name, kind, sortOrder],
   );
   return mapCategory(rows[0]);
 }
@@ -362,9 +409,77 @@ export async function deleteCategory(userId: number, id: number) {
   ]);
 }
 
-export async function maxCategorySortOrder(userId: number): Promise<number> {
+export async function maxCategorySortOrder(
+  userId: number,
+  kind: "EXPENSE" | "INCOME",
+): Promise<number> {
   const { rows } = await pool.query(
-    "SELECT MAX(sort_order) AS m FROM categories WHERE user_id = $1",
+    "SELECT MAX(sort_order) AS m FROM categories WHERE user_id = $1 AND kind = $2",
+    [userId, kind],
+  );
+  return rows[0].m === null ? -1 : Number(rows[0].m);
+}
+
+// ---------- payment methods ----------
+
+export async function listPaymentMethods(
+  userId: number,
+): Promise<PaymentMethodRow[]> {
+  const { rows } = await pool.query(
+    "SELECT * FROM payment_methods WHERE user_id = $1 ORDER BY sort_order ASC, id ASC",
+    [userId],
+  );
+  return rows.map(mapPaymentMethod);
+}
+
+export async function createDefaultPaymentMethods(
+  userId: number,
+  names: string[],
+) {
+  for (let i = 0; i < names.length; i += 1) {
+    await pool.query(
+      "INSERT INTO payment_methods (user_id, name, sort_order) VALUES ($1, $2, $3)",
+      [userId, names[i], i],
+    );
+  }
+}
+
+export async function createPaymentMethod(
+  userId: number,
+  name: string,
+  sortOrder: number,
+): Promise<PaymentMethodRow> {
+  const { rows } = await pool.query(
+    "INSERT INTO payment_methods (user_id, name, sort_order) VALUES ($1, $2, $3) RETURNING *",
+    [userId, name, sortOrder],
+  );
+  return mapPaymentMethod(rows[0]);
+}
+
+export async function updatePaymentMethod(
+  userId: number,
+  id: number,
+  name: string,
+): Promise<PaymentMethodRow | null> {
+  const { rows } = await pool.query(
+    "UPDATE payment_methods SET name = $3 WHERE id = $1 AND user_id = $2 RETURNING *",
+    [id, userId, name],
+  );
+  return rows[0] ? mapPaymentMethod(rows[0]) : null;
+}
+
+export async function deletePaymentMethod(userId: number, id: number) {
+  await pool.query(
+    "DELETE FROM payment_methods WHERE id = $1 AND user_id = $2",
+    [id, userId],
+  );
+}
+
+export async function maxPaymentMethodSortOrder(
+  userId: number,
+): Promise<number> {
+  const { rows } = await pool.query(
+    "SELECT MAX(sort_order) AS m FROM payment_methods WHERE user_id = $1",
     [userId],
   );
   return rows[0].m === null ? -1 : Number(rows[0].m);
@@ -378,8 +493,6 @@ export type TransactionInput = {
   occurredAt: Date;
   category: string;
   paymentMethod: string;
-  satisfaction: string;
-  spendingStyle: string;
   memo: string | null;
 };
 
@@ -408,8 +521,8 @@ export async function createTransaction(
 ): Promise<TransactionRow> {
   const { rows } = await pool.query(
     `INSERT INTO transactions
-      (user_id, kind, amount, occurred_at, category, payment_method, satisfaction, spending_style, memo)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      (user_id, kind, amount, occurred_at, category, payment_method, memo)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
     [
       userId,
       data.kind,
@@ -417,8 +530,6 @@ export async function createTransaction(
       data.occurredAt,
       data.category,
       data.paymentMethod,
-      data.satisfaction,
-      data.spendingStyle,
       data.memo,
     ],
   );
@@ -433,7 +544,7 @@ export async function updateTransaction(
   const { rows } = await pool.query(
     `UPDATE transactions SET
       kind = $3, amount = $4, occurred_at = $5, category = $6, payment_method = $7,
-      satisfaction = $8, spending_style = $9, memo = $10, updated_at = now()
+      memo = $8, updated_at = now()
      WHERE id = $1 AND user_id = $2 RETURNING *`,
     [
       id,
@@ -443,8 +554,6 @@ export async function updateTransaction(
       data.occurredAt,
       data.category,
       data.paymentMethod,
-      data.satisfaction,
-      data.spendingStyle,
       data.memo,
     ],
   );
