@@ -38,9 +38,9 @@ const DEFAULT_EXPENSE_CATEGORIES = ["食費", "生活費", "交通費", "趣味"
 const DEFAULT_INCOME_CATEGORIES = ["給与", "副業", "お小遣い", "その他収入"];
 const DEFAULT_PAYMENT_METHODS = [
   "現金",
-  "カード",
-  "QRコード",
-  "銀行振込",
+  "クレジット",
+  "デビット",
+  "電子決済",
   "その他",
 ];
 
@@ -704,12 +704,9 @@ app.post("/api/auth/register/request-code", async (req, res) => {
 
     const lastRequest = lastCodeRequestAt.get(`register:${email}`) || 0;
     if (Date.now() - lastRequest < CODE_REQUEST_COOLDOWN_MS) {
-      res
-        .status(429)
-        .json({
-          message:
-            "コードを送信しました。1分ほど待ってから再度お試しください。",
-        });
+      res.status(429).json({
+        message: "コードを送信しました。1分ほど待ってから再度お試しください。",
+      });
       return;
     }
     lastCodeRequestAt.set(`register:${email}`, Date.now());
@@ -738,20 +735,16 @@ app.post("/api/auth/register/verify-code", async (req, res) => {
       verification.consumedAt ||
       verification.expiresAt.getTime() < Date.now()
     ) {
-      res
-        .status(400)
-        .json({
-          message: "コードの有効期限が切れています。もう一度送信してください。",
-        });
+      res.status(400).json({
+        message: "コードの有効期限が切れています。もう一度送信してください。",
+      });
       return;
     }
     if (verification.attempts >= MAX_CODE_ATTEMPTS) {
-      res
-        .status(429)
-        .json({
-          message:
-            "試行回数が上限に達しました。もう一度コードを送信してください。",
-        });
+      res.status(429).json({
+        message:
+          "試行回数が上限に達しました。もう一度コードを送信してください。",
+      });
       return;
     }
     await db.incrementVerificationAttempts(verification.id);
@@ -773,12 +766,10 @@ app.post("/api/auth/register/complete", async (req, res) => {
   try {
     const payload = readVerifyToken(String(req.body.verifyToken || ""));
     if (!payload || payload.purpose !== "register") {
-      res
-        .status(401)
-        .json({
-          message:
-            "メール認証が確認できませんでした。最初からやり直してください。",
-        });
+      res.status(401).json({
+        message:
+          "メール認証が確認できませんでした。最初からやり直してください。",
+      });
       return;
     }
 
@@ -786,12 +777,10 @@ app.post("/api/auth/register/complete", async (req, res) => {
     const password = String(req.body.password || "");
 
     if (!USERNAME_RE.test(username)) {
-      res
-        .status(400)
-        .json({
-          message:
-            "ユーザー名は半角英数字・_-. のみ、3〜32文字で入力してください。",
-        });
+      res.status(400).json({
+        message:
+          "ユーザー名は半角英数字・_-. のみ、3〜32文字で入力してください。",
+      });
       return;
     }
     if (password.length < 8) {
@@ -891,12 +880,9 @@ app.post("/api/auth/password-reset/request", async (req, res) => {
 
     const lastRequest = lastCodeRequestAt.get(`reset:${email}`) || 0;
     if (Date.now() - lastRequest < CODE_REQUEST_COOLDOWN_MS) {
-      res
-        .status(429)
-        .json({
-          message:
-            "コードを送信しました。1分ほど待ってから再度お試しください。",
-        });
+      res.status(429).json({
+        message: "コードを送信しました。1分ほど待ってから再度お試しください。",
+      });
       return;
     }
     lastCodeRequestAt.set(`reset:${email}`, Date.now());
@@ -926,20 +912,16 @@ app.post("/api/auth/password-reset/verify", async (req, res) => {
       verification.consumedAt ||
       verification.expiresAt.getTime() < Date.now()
     ) {
-      res
-        .status(400)
-        .json({
-          message: "コードの有効期限が切れています。もう一度送信してください。",
-        });
+      res.status(400).json({
+        message: "コードの有効期限が切れています。もう一度送信してください。",
+      });
       return;
     }
     if (verification.attempts >= MAX_CODE_ATTEMPTS) {
-      res
-        .status(429)
-        .json({
-          message:
-            "試行回数が上限に達しました。もう一度コードを送信してください。",
-        });
+      res.status(429).json({
+        message:
+          "試行回数が上限に達しました。もう一度コードを送信してください。",
+      });
       return;
     }
     await db.incrementVerificationAttempts(verification.id);
@@ -965,12 +947,10 @@ app.post("/api/auth/password-reset/complete", async (req, res) => {
   try {
     const payload = readVerifyToken(String(req.body.verifyToken || ""));
     if (!payload || payload.purpose !== "reset") {
-      res
-        .status(401)
-        .json({
-          message:
-            "メール認証が確認できませんでした。最初からやり直してください。",
-        });
+      res.status(401).json({
+        message:
+          "メール認証が確認できませんでした。最初からやり直してください。",
+      });
       return;
     }
 
@@ -1141,12 +1121,10 @@ app.put("/api/auth/username", requireAuthApi, async (req, res) => {
   try {
     const username = String(req.body.username || "").trim();
     if (!USERNAME_RE.test(username)) {
-      res
-        .status(400)
-        .json({
-          message:
-            "ユーザー名は半角英数字・_-. のみ、3〜32文字で入力してください。",
-        });
+      res.status(400).json({
+        message:
+          "ユーザー名は半角英数字・_-. のみ、3〜32文字で入力してください。",
+      });
       return;
     }
     const existing = await db.findUserByUsername(username);
@@ -1444,12 +1422,10 @@ app.post("/api/split-sessions", requireAuthApi, async (req, res) => {
   try {
     const parsed = parseSplitPayload(req.body);
     if (!parsed) {
-      res
-        .status(400)
-        .json({
-          message:
-            "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
-        });
+      res.status(400).json({
+        message:
+          "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
+      });
       return;
     }
     const result = calculateSplitSettlement(
@@ -1463,16 +1439,14 @@ app.post("/api/split-sessions", requireAuthApi, async (req, res) => {
       contributionsText: JSON.stringify(parsed.payments),
       resultText: JSON.stringify(result.transfers),
     });
-    res
-      .status(201)
-      .json({
-        session: {
-          ...session,
-          participants: parsed.participants,
-          payments: parsed.payments,
-          result: result.transfers,
-        },
-      });
+    res.status(201).json({
+      session: {
+        ...session,
+        participants: parsed.participants,
+        payments: parsed.payments,
+        result: result.transfers,
+      },
+    });
   } catch (error) {
     console.error("割り勘計算の保存に失敗:", error);
     res.status(500).json({ message: "割り勘計算の保存に失敗しました。" });
@@ -1484,12 +1458,10 @@ app.put("/api/split-sessions/:id", requireAuthApi, async (req, res) => {
     const id = clampInt(req.params.id);
     const parsed = parseSplitPayload(req.body);
     if (!parsed) {
-      res
-        .status(400)
-        .json({
-          message:
-            "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
-        });
+      res.status(400).json({
+        message:
+          "参加者を1人以上、支払い明細（誰がいくら払ったか）を1件以上入力してください。",
+      });
       return;
     }
     const result = calculateSplitSettlement(
@@ -1701,14 +1673,12 @@ app.post("/api/subscriptions", requireAuthApi, async (req, res) => {
       req.user!.id,
       buildSubscriptionData(req.body),
     );
-    res
-      .status(201)
-      .json({
-        subscription: {
-          ...subscription,
-          amountLabel: formatCurrency(subscription.amount),
-        },
-      });
+    res.status(201).json({
+      subscription: {
+        ...subscription,
+        amountLabel: formatCurrency(subscription.amount),
+      },
+    });
   } catch (error) {
     console.error("サブスクの保存に失敗:", error);
     res.status(500).json({ message: "サブスクの保存に失敗しました。" });

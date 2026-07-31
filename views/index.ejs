@@ -1406,7 +1406,9 @@
             const padding = { top: 18, right: 16, bottom: 36, left: 34 };
             const chartWidth = width - padding.left - padding.right;
             const chartHeight = height - padding.top - padding.bottom;
-            const maxValue = Math.max(1, ...graph.flatMap((item) => [item.income, item.expense]));
+            const rawMaxValue = Math.max(1, ...graph.flatMap((item) => [item.income, item.expense]));
+            const digit = Math.pow(10, Math.floor(Math.log10(rawMaxValue)));
+            const maxValue = Math.ceil(rawMaxValue / digit) * digit;
             const barWidth = chartWidth / graph.length * 0.35;
             const groupWidth = chartWidth / graph.length;
 
