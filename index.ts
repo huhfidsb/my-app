@@ -492,6 +492,93 @@ async function buildSavingsAnalytics(
   };
 }
 
+async function buildBudgetInsights(userId: number, monthKey: string) {
+  const previousMonthKey = addMonths(monthKey, -1);
+
+  const [
+    currentBudgets,
+    previousBudgets,
+    currentTransactions,
+    previousTransactions,
+  ] = await Promise.all([
+    db.listBudgets(userId, monthKey),
+    db.listBudgets(userId, previousMonthKey),
+    db.listTransactions(userId, {
+      gte: startOfMonthUtc(monthKey),
+      lt: endOfMonthUtc(monthKey),
+    }),
+    db.listTransactions(userId, {
+      gte: startOfMonthUtc(previousMonthKey),
+      lt: endOfMonthUtc(previousMonthKey),
+    }),
+  ]);
+
+  let previousResult: {
+    totalBudget: number;
+    totalActual: number;
+    diff: number;
+  } | null = null;
+  if (previousBudgets.length > 0) {
+    const totalBudget = sum(previousBudgets.map((b) => b.amount));
+    const budgetedCategories = new Set(previousBudgets.map((b) => b.category));
+    const totalActual = sum(
+      previousTransactions
+        .filter(
+          (t) => t.kind === "EXPENSE" && budgetedCategories.has(t.category),
+        )
+        .map((t) => t.amount),
+    );
+    previousResult = {
+      totalBudget,
+      totalActual,
+      diff: totalBudget - totalActual,
+    };
+  }
+
+  let currentRemaining: {
+    daysRemaining: number;
+    categories: {
+      category: string;
+      budget: number;
+      spent: number;
+      remaining: number;
+    }[];
+  } | null = null;
+  if (currentBudgets.length > 0) {
+    const now = new Date();
+    const [yearText = "1970", monthText = "01"] = monthKey.split("-");
+    const daysInMonth = new Date(
+      Date.UTC(
+        Number.parseInt(yearText, 10),
+        Number.parseInt(monthText, 10),
+        0,
+      ),
+    ).getUTCDate();
+    const isCurrentCalendarMonth = monthKey === toIsoMonth(now);
+    const daysRemaining = isCurrentCalendarMonth
+      ? Math.max(0, daysInMonth - now.getUTCDate() + 1)
+      : daysInMonth;
+
+    const categories = currentBudgets.map((budget) => {
+      const spent = sum(
+        currentTransactions
+          .filter((t) => t.kind === "EXPENSE" && t.category === budget.category)
+          .map((t) => t.amount),
+      );
+      return {
+        category: budget.category,
+        budget: budget.amount,
+        spent,
+        remaining: budget.amount - spent,
+      };
+    });
+
+    currentRemaining = { daysRemaining, categories };
+  }
+
+  return { monthKey, previousMonthKey, previousResult, currentRemaining };
+}
+
 // ---------------- 認証ミドルウェア ----------------
 
 declare global {
@@ -1050,6 +1137,46 @@ app.put("/api/settings", requireAuthApi, async (req, res) => {
   }
 });
 
+app.put("/api/auth/username", requireAuthApi, async (req, res) => {
+  try {
+    const username = String(req.body.username || "").trim();
+    if (!USERNAME_RE.test(username)) {
+      res
+        .status(400)
+        .json({
+          message:
+            "ユーザー名は半角英数字・_-. のみ、3〜32文字で入力してください。",
+        });
+      return;
+    }
+    const existing = await db.findUserByUsername(username);
+    if (existing && existing.id !== req.user!.id) {
+      res.status(409).json({ message: "そのユーザー名は既に使われています。" });
+      return;
+    }
+    await db.updateUsername(req.user!.id, username);
+    const user = await db.findUserById(req.user!.id);
+    res.json({ user: userPublicView(user!) });
+  } catch (error) {
+    console.error("ユーザー名の変更に失敗:", error);
+    res.status(500).json({ message: "ユーザー名の変更に失敗しました。" });
+  }
+});
+
+app.delete("/api/auth/account", requireAuthApi, async (req, res) => {
+  try {
+    await db.deleteUser(req.user!.id);
+    res.setHeader("Set-Cookie", [
+      clearSessionCookieHeader(IS_PRODUCTION),
+      clearDeviceCookieHeader(IS_PRODUCTION),
+    ]);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("退会処理に失敗:", error);
+    res.status(500).json({ message: "退会処理に失敗しました。" });
+  }
+});
+
 async function ensureDefaultCategoriesAndPaymentMethods(userId: number) {
   const [expenseCategories, incomeCategories, methods] = await Promise.all([
     db.listCategories(userId, "EXPENSE"),
@@ -1099,6 +1226,9 @@ app.get("/", requireAuthPage, async (req, res) => {
       savings,
       categories,
       paymentMethods,
+      subscriptions,
+      budgets,
+      budgetInsights,
     ] = await Promise.all([
       buildMonthSummary(user.id, monthKey),
       getYearlyGraphData(user.id, year),
@@ -1110,6 +1240,9 @@ app.get("/", requireAuthPage, async (req, res) => {
       buildSavingsAnalytics(user.id, monthKey, savingsGoal),
       db.listCategories(user.id),
       db.listPaymentMethods(user.id),
+      db.listSubscriptions(user.id),
+      db.listBudgets(user.id, monthKey),
+      buildBudgetInsights(user.id, monthKey),
     ]);
 
     res.render("index", {
@@ -1132,6 +1265,12 @@ app.get("/", requireAuthPage, async (req, res) => {
         savings,
         categories,
         paymentMethods,
+        subscriptions: subscriptions.map((item) => ({
+          ...item,
+          amountLabel: formatCurrency(item.amount),
+        })),
+        budgets,
+        budgetInsights,
         user: userPublicView(user),
       },
       enums: { transactionKinds },
@@ -1248,6 +1387,17 @@ app.get("/api/analytics/savings", requireAuthApi, async (req, res) => {
   } catch (error) {
     console.error("貯蓄分析の取得に失敗:", error);
     res.status(500).json({ message: "貯蓄分析の取得に失敗しました。" });
+  }
+});
+
+app.get("/api/analytics/budget-insights", requireAuthApi, async (req, res) => {
+  try {
+    const monthKey = parseMonthKey(String(req.query.month ?? ""));
+    const insights = await buildBudgetInsights(req.user!.id, monthKey);
+    res.json(insights);
+  } catch (error) {
+    console.error("予算インサイトの取得に失敗:", error);
+    res.status(500).json({ message: "予算インサイトの取得に失敗しました。" });
   }
 });
 
@@ -1514,6 +1664,128 @@ app.delete("/api/payment-methods/:id", requireAuthApi, async (req, res) => {
   } catch (error) {
     console.error("支払い方法の削除に失敗:", error);
     res.status(500).json({ message: "支払い方法の削除に失敗しました。" });
+  }
+});
+
+// ---------------- サブスク ----------------
+
+app.get("/api/subscriptions", requireAuthApi, async (req, res) => {
+  try {
+    const items = await db.listSubscriptions(req.user!.id);
+    res.json({
+      items: items.map((item) => ({
+        ...item,
+        amountLabel: formatCurrency(item.amount),
+      })),
+    });
+  } catch (error) {
+    console.error("サブスク一覧の取得に失敗:", error);
+    res.status(500).json({ message: "サブスク一覧の取得に失敗しました。" });
+  }
+});
+
+function buildSubscriptionData(body: any): db.SubscriptionInput {
+  return {
+    name: String(body.name || "").trim() || "名称未設定",
+    amount: clampInt(body.amount),
+    category: String(body.category || "未分類"),
+    paymentMethod: String(body.paymentMethod || "その他").trim() || "その他",
+    billingDay: Math.min(31, Math.max(1, clampInt(body.billingDay, 1))),
+    memo: String(body.memo || "").trim() || null,
+  };
+}
+
+app.post("/api/subscriptions", requireAuthApi, async (req, res) => {
+  try {
+    const subscription = await db.createSubscription(
+      req.user!.id,
+      buildSubscriptionData(req.body),
+    );
+    res
+      .status(201)
+      .json({
+        subscription: {
+          ...subscription,
+          amountLabel: formatCurrency(subscription.amount),
+        },
+      });
+  } catch (error) {
+    console.error("サブスクの保存に失敗:", error);
+    res.status(500).json({ message: "サブスクの保存に失敗しました。" });
+  }
+});
+
+app.put("/api/subscriptions/:id", requireAuthApi, async (req, res) => {
+  try {
+    const subscription = await db.updateSubscription(
+      req.user!.id,
+      clampInt(req.params.id),
+      buildSubscriptionData(req.body),
+    );
+    if (!subscription) {
+      res.status(404).json({ message: "サブスクが見つかりません。" });
+      return;
+    }
+    res.json({
+      subscription: {
+        ...subscription,
+        amountLabel: formatCurrency(subscription.amount),
+      },
+    });
+  } catch (error) {
+    console.error("サブスクの更新に失敗:", error);
+    res.status(500).json({ message: "サブスクの更新に失敗しました。" });
+  }
+});
+
+app.delete("/api/subscriptions/:id", requireAuthApi, async (req, res) => {
+  try {
+    await db.deleteSubscription(req.user!.id, clampInt(req.params.id));
+    res.status(204).end();
+  } catch (error) {
+    console.error("サブスクの削除に失敗:", error);
+    res.status(500).json({ message: "サブスクの削除に失敗しました。" });
+  }
+});
+
+// ---------------- 月予算 ----------------
+
+app.get("/api/budgets", requireAuthApi, async (req, res) => {
+  try {
+    const monthKey = parseMonthKey(String(req.query.month ?? ""));
+    const items = await db.listBudgets(req.user!.id, monthKey);
+    res.json({ monthKey, items });
+  } catch (error) {
+    console.error("予算の取得に失敗:", error);
+    res.status(500).json({ message: "予算の取得に失敗しました。" });
+  }
+});
+
+app.put("/api/budgets", requireAuthApi, async (req, res) => {
+  try {
+    const monthKey = parseMonthKey(String(req.body.month ?? ""));
+    const category = String(req.body.category || "").trim();
+    if (!category) {
+      res.status(400).json({ message: "カテゴリーを指定してください。" });
+      return;
+    }
+    const rawAmount = req.body.amount;
+    if (rawAmount === null || rawAmount === "" || rawAmount === undefined) {
+      await db.deleteBudget(req.user!.id, monthKey, category);
+      res.json({ ok: true });
+      return;
+    }
+    const amount = Math.max(0, clampInt(rawAmount, 0));
+    const budget = await db.upsertBudget(
+      req.user!.id,
+      monthKey,
+      category,
+      amount,
+    );
+    res.json({ budget });
+  } catch (error) {
+    console.error("予算の保存に失敗:", error);
+    res.status(500).json({ message: "予算の保存に失敗しました。" });
   }
 });
 

@@ -97,3 +97,31 @@ CREATE TABLE IF NOT EXISTS split_settlements (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS split_settlements_user_id_idx ON split_settlements(user_id);
+
+-- サブスク（定期支出）
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id             SERIAL PRIMARY KEY,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL,
+  amount         INTEGER NOT NULL,
+  category       TEXT NOT NULL,
+  payment_method TEXT NOT NULL,
+  billing_day    INTEGER NOT NULL DEFAULT 1, -- 毎月の支払日（1〜31）
+  memo           TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS subscriptions_user_idx ON subscriptions(user_id);
+
+-- 月予算（カテゴリーごと・月ごと）
+CREATE TABLE IF NOT EXISTS budgets (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  month_key  TEXT NOT NULL, -- 'YYYY-MM'
+  category   TEXT NOT NULL,
+  amount     INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, month_key, category)
+);
+CREATE INDEX IF NOT EXISTS budgets_user_month_idx ON budgets(user_id, month_key);

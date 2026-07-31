@@ -195,6 +195,18 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
   );
 }
 
+export async function updateUsername(userId: number, username: string) {
+  await pool.query(
+    "UPDATE users SET username = $2, updated_at = now() WHERE id = $1",
+    [userId, username],
+  );
+}
+
+export async function deleteUser(userId: number) {
+  // 関連テーブルは ON DELETE CASCADE なので、ユーザーを消せば紐づくデータもすべて削除される
+  await pool.query("DELETE FROM users WHERE id = $1", [userId]);
+}
+
 export async function updateUserSettings(
   userId: number,
   settings: { savingsGoalAmount?: number | null; guidesEnabled?: boolean },
@@ -662,5 +674,162 @@ export async function deleteSplitSession(userId: number, id: number) {
   await pool.query(
     "DELETE FROM split_settlements WHERE id = $1 AND user_id = $2",
     [id, userId],
+  );
+}
+
+// ---------- subscriptions（サブスク） ----------
+
+export type SubscriptionRow = {
+  id: number;
+  userId: number;
+  name: string;
+  amount: number;
+  category: string;
+  paymentMethod: string;
+  billingDay: number;
+  memo: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function mapSubscription(row: any): SubscriptionRow {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    amount: Number(row.amount),
+    category: row.category,
+    paymentMethod: row.payment_method,
+    billingDay: row.billing_day,
+    memo: row.memo,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export type SubscriptionInput = {
+  name: string;
+  amount: number;
+  category: string;
+  paymentMethod: string;
+  billingDay: number;
+  memo: string | null;
+};
+
+export async function listSubscriptions(
+  userId: number,
+): Promise<SubscriptionRow[]> {
+  const { rows } = await pool.query(
+    "SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY billing_day ASC, id ASC",
+    [userId],
+  );
+  return rows.map(mapSubscription);
+}
+
+export async function createSubscription(
+  userId: number,
+  data: SubscriptionInput,
+): Promise<SubscriptionRow> {
+  const { rows } = await pool.query(
+    `INSERT INTO subscriptions (user_id, name, amount, category, payment_method, billing_day, memo)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [
+      userId,
+      data.name,
+      data.amount,
+      data.category,
+      data.paymentMethod,
+      data.billingDay,
+      data.memo,
+    ],
+  );
+  return mapSubscription(rows[0]);
+}
+
+export async function updateSubscription(
+  userId: number,
+  id: number,
+  data: SubscriptionInput,
+): Promise<SubscriptionRow | null> {
+  const { rows } = await pool.query(
+    `UPDATE subscriptions SET
+      name = $3, amount = $4, category = $5, payment_method = $6, billing_day = $7, memo = $8, updated_at = now()
+     WHERE id = $1 AND user_id = $2 RETURNING *`,
+    [
+      id,
+      userId,
+      data.name,
+      data.amount,
+      data.category,
+      data.paymentMethod,
+      data.billingDay,
+      data.memo,
+    ],
+  );
+  return rows[0] ? mapSubscription(rows[0]) : null;
+}
+
+export async function deleteSubscription(userId: number, id: number) {
+  await pool.query("DELETE FROM subscriptions WHERE id = $1 AND user_id = $2", [
+    id,
+    userId,
+  ]);
+}
+
+// ---------- budgets（月予算） ----------
+
+export type BudgetRow = {
+  id: number;
+  userId: number;
+  monthKey: string;
+  category: string;
+  amount: number;
+};
+
+function mapBudget(row: any): BudgetRow {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    monthKey: row.month_key,
+    category: row.category,
+    amount: Number(row.amount),
+  };
+}
+
+export async function listBudgets(
+  userId: number,
+  monthKey: string,
+): Promise<BudgetRow[]> {
+  const { rows } = await pool.query(
+    "SELECT * FROM budgets WHERE user_id = $1 AND month_key = $2 ORDER BY category ASC",
+    [userId, monthKey],
+  );
+  return rows.map(mapBudget);
+}
+
+export async function upsertBudget(
+  userId: number,
+  monthKey: string,
+  category: string,
+  amount: number,
+): Promise<BudgetRow> {
+  const { rows } = await pool.query(
+    `INSERT INTO budgets (user_id, month_key, category, amount)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id, month_key, category) DO UPDATE SET amount = $4, updated_at = now()
+     RETURNING *`,
+    [userId, monthKey, category, amount],
+  );
+  return mapBudget(rows[0]);
+}
+
+export async function deleteBudget(
+  userId: number,
+  monthKey: string,
+  category: string,
+) {
+  await pool.query(
+    "DELETE FROM budgets WHERE user_id = $1 AND month_key = $2 AND category = $3",
+    [userId, monthKey, category],
   );
 }
