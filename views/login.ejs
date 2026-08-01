@@ -255,12 +255,9 @@
           </form>
         </div>
 
-        <!-- 新規登録：メール認証 → ユーザー名・パスワード設定 -->
+        <!-- 新規登録：メールアドレス + パスワード -->
         <div id="registerPanel" class="panel-block">
-          <div class="step active" id="registerStepEmail">
-            <p class="notice">
-              登録するメールアドレスに6桁の認証コードを送ります。
-            </p>
+          <form id="registerForm">
             <div class="field">
               <label for="registerEmail">メールアドレス</label>
               <input
@@ -269,45 +266,6 @@
                 autocomplete="email"
                 required
               />
-            </div>
-            <button type="button" class="submit" id="sendRegisterCodeBtn">
-              認証コードを送信
-            </button>
-          </div>
-
-          <div class="step" id="registerStepCode">
-            <p class="notice">
-              <span id="registerCodeSentTo"></span>
-              に送信したコードを入力してください。
-            </p>
-            <div class="field">
-              <label for="registerCode">認証コード（6桁）</label>
-              <input
-                id="registerCode"
-                inputmode="numeric"
-                pattern="\d*"
-                maxlength="6"
-                data-code
-                required
-              />
-            </div>
-            <button type="button" class="submit" id="verifyRegisterCodeBtn">
-              確認する
-            </button>
-            <button type="button" class="link-btn" id="resendRegisterCodeBtn">
-              コードを再送する
-            </button>
-          </div>
-
-          <div class="step" id="registerStepProfile">
-            <p class="notice">
-              メール認証が完了しました。ログインに使うユーザー名とパスワードを設定してください。
-            </p>
-            <div class="field">
-              <label for="registerUsername"
-                >ユーザー名（半角英数字、3〜32文字）</label
-              >
-              <input id="registerUsername" autocomplete="username" required />
             </div>
             <div class="field">
               <label for="registerPassword">パスワード（8文字以上）</label>
@@ -318,10 +276,10 @@
                 required
               />
             </div>
-            <button type="button" class="submit" id="completeRegisterBtn">
+            <button type="submit" class="submit" id="registerSubmitBtn">
               登録して始める
             </button>
-          </div>
+          </form>
         </div>
 
         <!-- パスワードを忘れた場合：メール認証 → 新しいパスワード -->
@@ -481,77 +439,24 @@
           }
         });
 
-      // ---------- 新規登録（メール確認 → ユーザー名・パスワード） ----------
-
-      let pendingRegisterEmail = "";
-      let registerVerifyToken = "";
+      // ---------- 新規登録（メールアドレス + パスワード） ----------
 
       document
-        .getElementById("sendRegisterCodeBtn")
-        .addEventListener("click", async () => {
+        .getElementById("registerForm")
+        .addEventListener("submit", async (event) => {
+          event.preventDefault();
           showError("");
           const email = document.getElementById("registerEmail").value.trim();
-          if (!email) {
-            showError("メールアドレスを入力してください。");
-            return;
-          }
-          try {
-            await submitJson("/api/auth/register/request-code", { email });
-            pendingRegisterEmail = email;
-            document.getElementById("registerCodeSentTo").textContent = email;
-            showStep("registerPanel", "registerStepCode");
-          } catch (error) {
-            showError(error.message);
-          }
-        });
-
-      document
-        .getElementById("resendRegisterCodeBtn")
-        .addEventListener("click", async () => {
-          showError("");
-          try {
-            await submitJson("/api/auth/register/request-code", {
-              email: pendingRegisterEmail,
-            });
-            showError("コードを再送しました。");
-          } catch (error) {
-            showError(error.message);
-          }
-        });
-
-      document
-        .getElementById("verifyRegisterCodeBtn")
-        .addEventListener("click", async () => {
-          showError("");
-          const code = document.getElementById("registerCode").value.trim();
-          try {
-            const data = await submitJson("/api/auth/register/verify-code", {
-              email: pendingRegisterEmail,
-              code,
-            });
-            registerVerifyToken = data.verifyToken;
-            showStep("registerPanel", "registerStepProfile");
-          } catch (error) {
-            showError(error.message);
-          }
-        });
-
-      document
-        .getElementById("completeRegisterBtn")
-        .addEventListener("click", async () => {
-          showError("");
-          const username = document
-            .getElementById("registerUsername")
-            .value.trim();
           const password = document.getElementById("registerPassword").value;
           try {
-            await submitJson("/api/auth/register/complete", {
-              verifyToken: registerVerifyToken,
-              username,
+            const data = await submitJson("/api/auth/register", {
+              email,
               password,
             });
-            localStorage.setItem("mp_last_user", username);
-            localStorage.setItem("mp_last_email", pendingRegisterEmail);
+            localStorage.setItem("mp_last_email", email);
+            if (data.user?.username) {
+              localStorage.setItem("mp_last_user", data.user.username);
+            }
             window.location.href = "/";
           } catch (error) {
             showError(error.message);

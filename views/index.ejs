@@ -47,7 +47,9 @@
 
         .hero { margin-bottom: 14px; }
         .grid { display: flex; flex-direction: column; gap: 14px; }
-        .pie-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .pie-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+        .pie-section { display: grid; gap: 12px; align-items: start; }
+        .pie-compare + .pie-compare { margin-top: 28px; }
         .pie-row { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
         .stack { display: grid; gap: 12px; }
 
@@ -86,7 +88,23 @@
         h1, h2, h3, p { margin: 0; }
         h1 { margin-top: 10px; font-size: 1.7rem; line-height: 1.15; }
         .hero p { margin-top: 8px; color: var(--muted); line-height: 1.6; font-size: 0.92rem; }
+        .hero .chart-box-large { margin-top: 18px; }
         .hero-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+        .savings-summary-panel {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(250, 246, 235, 0.96));
+            transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+        }
+        .savings-summary-panel.tone-low { border-color: rgba(19, 34, 56, 0.08); }
+        .savings-summary-panel.tone-mid { border-color: rgba(15, 76, 92, 0.24); box-shadow: 0 20px 60px rgba(15, 76, 92, 0.14); }
+        .savings-summary-panel.tone-high { border-color: rgba(217, 119, 6, 0.24); box-shadow: 0 20px 60px rgba(217, 119, 6, 0.15); }
+        .savings-summary-panel.tone-full { border-color: rgba(29, 78, 216, 0.3); box-shadow: 0 22px 66px rgba(29, 78, 216, 0.16); transform: translateY(-1px); }
+        .savings-summary-panel .stat { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
+        .savings-summary-panel.tone-mid .stat,
+        .savings-summary-panel.tone-high .stat,
+        .savings-summary-panel.tone-full .stat { box-shadow: 0 10px 24px rgba(19, 34, 56, 0.08); }
+        .savings-summary-panel.tone-high .stat strong,
+        .savings-summary-panel.tone-full .stat strong { letter-spacing: 0.02em; }
+        .savings-summary-panel .month-picker-bar { margin-bottom: 10px; }
         .flow-stats { display: flex; align-items: center; gap: 6px; }
         .flow-stat { flex: 1; min-width: 0; text-align: center; }
         .flow-stat small, .flow-stat strong { display: block; }
@@ -151,6 +169,10 @@
             border: 1px solid rgba(19, 34, 56, 0.14); border-radius: 10px; padding: 8px 10px;
             font: inherit; background: rgba(255, 255, 255, 0.94); color: var(--text);
         }
+        .budget-row { display: flex; align-items: center; gap: 8px; }
+        .budget-row .category-label { flex: 0 0 auto; }
+        .budget-row .budget-amount-input { flex: 1; min-width: 0; }
+        .budget-row .budget-delete { width: 28px; height: 28px; padding: 0; font-size: 14px; }
 
         /* タブ切り替え（収支記録 / 分析 / 割り勘 / 貯蓄管理） */
         .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -178,8 +200,11 @@
         .category-label { font-size: 0.92rem; font-weight: 700; color: var(--text); }
         .memo-label { font-size: 0.76rem; color: var(--muted); margin-top: 2px; }
         .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(15, 76, 92, 0.1); color: var(--accent); font-size: 12px; font-weight: 700; }
-        .legend-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.82rem; }
-        .legend-item strong { font-size: 0.82rem; font-weight: 700; }
+        .legend-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.72rem; white-space: nowrap; overflow: hidden; }
+        .legend-item .legend-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; flex: 1; }
+        .legend-item strong { font-size: 0.72rem; font-weight: 700; white-space: nowrap; flex: 0 0 auto; }
+        .legend-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 8px; flex: 0 0 auto; }
         .amount { font-size: 0.92rem; }
         .amount.income { color: var(--income); font-weight: 800; }
         .amount.expense { color: var(--expense); font-weight: 800; }
@@ -473,12 +498,22 @@
                                     <input id="subscriptionName" name="name" placeholder="例）動画配信サービス" required>
                                 </div>
                                 <div class="field">
-                                    <label for="subscriptionAmount">金額（月額）</label>
+                                    <label for="subscriptionAmount">一回の金額</label>
                                     <input id="subscriptionAmount" name="amount" type="number" min="0" placeholder="0" required>
                                 </div>
                                 <div class="field">
-                                    <label for="subscriptionBillingDay">支払日（毎月）</label>
-                                    <input id="subscriptionBillingDay" name="billingDay" type="number" min="1" max="31" placeholder="1">
+                                    <label for="subscriptionIntervalValue">サブスク期間</label>
+                                    <div class="month-nav" style="grid-template-columns: 1fr auto; gap: 8px;">
+                                        <input id="subscriptionIntervalValue" name="intervalValue" type="number" min="1" placeholder="1" required>
+                                        <select id="subscriptionIntervalUnit" name="intervalUnit" required>
+                                            <option value="DAY">日ごと</option>
+                                            <option value="MONTH">ヶ月ごと</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="field">
+                                    <label for="subscriptionFirstPaymentDate">初回支払日</label>
+                                    <input id="subscriptionFirstPaymentDate" name="firstPaymentDate" type="date" required>
                                 </div>
                                 <div class="field">
                                     <label for="subscriptionCategory">カテゴリー</label>
@@ -551,18 +586,34 @@
                 <section class="panel">
                     <h2>内訳（円グラフ）</h2>
                     <div class="pie-compare">
-                        <div>
+                        <div class="pie-section">
                             <h3>支出の内訳</h3>
                             <div class="pie-row">
                                 <div class="pie" id="expenseCategoryPie"></div>
                                 <div class="legend" id="expenseCategoryLegend"></div>
                             </div>
                         </div>
-                        <div>
+                        <div class="pie-section">
                             <h3>収入の内訳</h3>
                             <div class="pie-row">
                                 <div class="pie" id="incomeCategoryPie"></div>
                                 <div class="legend" id="incomeCategoryLegend"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pie-compare" style="margin-top: 16px;">
+                        <div class="pie-section">
+                            <h3>支出の支払い方法</h3>
+                            <div class="pie-row">
+                                <div class="pie" id="expensePaymentMethodPie"></div>
+                                <div class="legend" id="expensePaymentMethodLegend"></div>
+                            </div>
+                        </div>
+                        <div class="pie-section">
+                            <h3>収入の支払い方法</h3>
+                            <div class="pie-row">
+                                <div class="pie" id="incomePaymentMethodPie"></div>
+                                <div class="legend" id="incomePaymentMethodLegend"></div>
                             </div>
                         </div>
                     </div>
@@ -643,12 +694,24 @@
         <div id="tab-savings" class="tab-panel">
             <div class="grid">
                 <div class="stack">
-                    <section class="panel">
-                        <h2>貯蓄額と目標</h2>
+                    <section class="panel savings-summary-panel" id="savingsSummaryPanel">
+                        <div class="month-picker-bar">
+                            <div class="month-nav">
+                                <button type="button" class="month-nav-btn secondary" id="savingsPrevMonth" title="前の月へ">＜</button>
+                                <input type="month" id="savingsMonth" value="<%= initialData.monthKey %>">
+                                <button type="button" class="month-nav-btn secondary" id="savingsNextMonth" title="次の月へ">＞</button>
+                            </div>
+                        </div>
 
                         <div class="hero-grid">
                             <div class="stat"><small>現在の貯蓄額</small><strong id="currentSavings">-</strong></div>
                             <div class="stat"><small>目標額</small><strong id="savingsGoalDisplay">-</strong></div>
+                            <div class="stat"><small>選択月の貯蓄率</small><strong id="savingsMonthRate">-</strong></div>
+                        </div>
+
+                        <div class="hero-grid" style="margin-top: 10px;">
+                            <div class="stat"><small>選択月の収入</small><strong id="savingsMonthIncome">-</strong></div>
+                            <div class="stat"><small>選択月の支出</small><strong id="savingsMonthExpense">-</strong></div>
                             <div class="stat"><small>達成率</small><strong id="goalProgress">-</strong></div>
                         </div>
 
@@ -666,28 +729,12 @@
                             <button type="button" id="saveSavingsGoal">目標額を保存</button>
                         </div>
                     </section>
+                </div>
 
-                    <section class="panel">
-                        <h2>選択月の貯蓄率</h2>
-
-                        <div class="month-picker-bar">
-                            <div class="month-nav">
-                                <button type="button" class="month-nav-btn secondary" id="savingsPrevMonth" title="前の月へ">＜</button>
-                                <input type="month" id="savingsMonth" value="<%= initialData.monthKey %>">
-                                <button type="button" class="month-nav-btn secondary" id="savingsNextMonth" title="次の月へ">＞</button>
-                            </div>
-                        </div>
-
-                        <div class="hero-grid">
-                            <div class="stat"><small>選択月の収入</small><strong id="savingsMonthIncome">-</strong></div>
-                            <div class="stat"><small>選択月の支出</small><strong id="savingsMonthExpense">-</strong></div>
-                            <div class="stat"><small>貯蓄率</small><strong id="savingsMonthRate">-</strong></div>
-                        </div>
-                    </section>
-
+                <div class="stack">
                     <section class="panel">
                         <h2>月予算設定</h2>
-                        <p class="hint guide-text">選択中の月（上の「選択月の貯蓄率」と同じ月）について、カテゴリーごとに予算を設定できます。予算を設定したカテゴリーだけが下に表示されます。</p>
+                        <p class="hint guide-text">選択中の月について、カテゴリーごとに予算を設定できます。予算を設定したカテゴリーだけが下に表示されます。</p>
 
                         <div class="category-manage-row" style="margin-bottom: 10px;">
                             <select id="budgetCategorySelect" style="flex: 1;"></select>
@@ -697,9 +744,7 @@
 
                         <div class="category-manager" id="budgetList"></div>
                     </section>
-                </div>
 
-                <div class="stack">
                     <section class="panel">
                         <h2>カテゴリ別 節約率</h2>
                         <div class="list" id="categorySavingsList"></div>
@@ -782,6 +827,10 @@
             expenseCategoryLegend: document.getElementById("expenseCategoryLegend"),
             incomeCategoryPie: document.getElementById("incomeCategoryPie"),
             incomeCategoryLegend: document.getElementById("incomeCategoryLegend"),
+            expensePaymentMethodPie: document.getElementById("expensePaymentMethodPie"),
+            expensePaymentMethodLegend: document.getElementById("expensePaymentMethodLegend"),
+            incomePaymentMethodPie: document.getElementById("incomePaymentMethodPie"),
+            incomePaymentMethodLegend: document.getElementById("incomePaymentMethodLegend"),
             calendar: document.getElementById("calendar"),
             splitResult: document.getElementById("splitResult"),
             participants: document.getElementById("participants"),
@@ -817,6 +866,15 @@
         }
 
         function formatAmount(value) { return `${currencyFormatter.format(value)}円`; }
+
+        function getNiceChartMaxValue(rawMaxValue) {
+            if (rawMaxValue <= 0) return 10000;
+            const exponent = Math.floor(Math.log10(rawMaxValue));
+            const base = 10 ** exponent;
+            const scaled = rawMaxValue / base;
+            const rounded = scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10;
+            return rounded * base;
+        }
 
         function escapeHtml(value) {
             return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -1074,18 +1132,31 @@
             const previousCategory = categorySelect.value;
             const expenseNames = categories.filter((c) => c.kind === "EXPENSE").map((c) => c.name);
             categorySelect.innerHTML = expenseNames.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
-            if (expenseNames.includes(previousCategory)) categorySelect.value = previousCategory;
+            if (expenseNames.includes(previousCategory)) {
+                categorySelect.value = previousCategory;
+            } else if (expenseNames.length > 0) {
+                categorySelect.value = expenseNames[0];
+            }
 
             const methodSelect = document.getElementById("subscriptionPaymentMethod");
             const previousMethod = methodSelect.value;
             const methodNames = paymentMethods.map((m) => m.name);
             methodSelect.innerHTML = methodNames.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
-            if (methodNames.includes(previousMethod)) methodSelect.value = previousMethod;
+            if (methodNames.includes(previousMethod)) {
+                methodSelect.value = previousMethod;
+            } else if (methodNames.includes("クレジット")) {
+                methodSelect.value = "クレジット";
+            } else if (methodNames.length > 0) {
+                methodSelect.value = methodNames[0];
+            }
         }
 
         function resetSubscriptionForm() {
             document.getElementById("subscriptionForm").reset();
             delete document.getElementById("subscriptionForm").dataset.editingId;
+            document.getElementById("subscriptionIntervalValue").value = "1";
+            document.getElementById("subscriptionIntervalUnit").value = "MONTH";
+            document.getElementById("subscriptionFirstPaymentDate").value = "";
             populateSubscriptionSelects();
             document.getElementById("subscriptionSubmitBtn").textContent = "サブスクを保存する";
             document.getElementById("cancelEditSubscription").style.display = "none";
@@ -1099,13 +1170,14 @@
                         <div class="entry-top">
                             <div>
                                 <div class="category-label">${escapeHtml(item.name)}</div>
-                                <p class="muted" style="margin-top: 2px;">${escapeHtml(item.category)} / ${escapeHtml(item.paymentMethod)} / 毎月${item.billingDay}日</p>
+                                <p class="muted" style="margin-top: 2px;">${escapeHtml(item.statusLabel)} / ${escapeHtml(item.category)} / ${escapeHtml(item.paymentMethod)} / ${escapeHtml(item.intervalLabel)} / 初回 ${escapeHtml(item.firstPaymentDateLabel)}</p>
                                 ${item.memo ? `<div class="memo-label">${escapeHtml(item.memo)}</div>` : ""}
                             </div>
                             <div class="amount expense">-${item.amountLabel}</div>
                         </div>
                         <div class="entry-actions">
                             <button type="button" class="secondary btn-sm edit-subscription" data-id="${item.id}">編集</button>
+                            ${item.active ? `<button type="button" class="secondary btn-sm stop-subscription" data-id="${item.id}">停止</button>` : ""}
                             <button type="button" class="danger btn-sm delete-subscription" data-id="${item.id}">削除</button>
                         </div>
                     </article>
@@ -1136,7 +1208,9 @@
             const payload = {
                 name: document.getElementById("subscriptionName").value.trim(),
                 amount: document.getElementById("subscriptionAmount").value,
-                billingDay: document.getElementById("subscriptionBillingDay").value || 1,
+                intervalValue: document.getElementById("subscriptionIntervalValue").value,
+                intervalUnit: document.getElementById("subscriptionIntervalUnit").value,
+                firstPaymentDate: document.getElementById("subscriptionFirstPaymentDate").value || null,
                 category: document.getElementById("subscriptionCategory").value,
                 paymentMethod: document.getElementById("subscriptionPaymentMethod").value,
                 memo: document.getElementById("subscriptionMemo").value,
@@ -1149,6 +1223,8 @@
             }
             resetSubscriptionForm();
             await loadSubscriptions();
+            // サブスクの登録・編集内容を収支記録・カレンダー・分析にもすぐ反映させる
+            await refreshAll();
         });
 
         document.getElementById("cancelEditSubscription").addEventListener("click", resetSubscriptionForm);
@@ -1161,7 +1237,9 @@
                 document.getElementById("subscriptionForm").dataset.editingId = item.id;
                 document.getElementById("subscriptionName").value = item.name;
                 document.getElementById("subscriptionAmount").value = item.amount;
-                document.getElementById("subscriptionBillingDay").value = item.billingDay;
+                document.getElementById("subscriptionIntervalValue").value = item.intervalValue;
+                document.getElementById("subscriptionIntervalUnit").value = item.intervalUnit;
+                document.getElementById("subscriptionFirstPaymentDate").value = item.firstPaymentDate || "";
                 populateSubscriptionSelects();
                 document.getElementById("subscriptionCategory").value = item.category;
                 document.getElementById("subscriptionPaymentMethod").value = item.paymentMethod;
@@ -1170,10 +1248,20 @@
                 document.getElementById("cancelEditSubscription").style.display = "inline-flex";
                 return;
             }
+            const stopBtn = event.target.closest(".stop-subscription");
+            if (stopBtn) {
+                if (confirm("このサブスクを停止しますか？ 今後の購入は自動生成されなくなります。")) {
+                    await api(`/api/subscriptions/${stopBtn.dataset.id}/stop`, { method: "POST" });
+                    await loadSubscriptions();
+                    await refreshAll();
+                }
+                return;
+            }
             const deleteBtn = event.target.closest(".delete-subscription");
             if (deleteBtn) {
                 if (confirm("このサブスクを削除しますか？")) {
                     await api(`/api/subscriptions/${deleteBtn.dataset.id}`, { method: "DELETE" });
+                    await refreshAll();
                     await loadSubscriptions();
                 }
             }
@@ -1288,7 +1376,8 @@
                 legendEl.innerHTML = `<div class="legend-item"><span>${emptyLabel}</span><strong>0円</strong></div>`;
                 return;
             }
-            const palette = ["#0f4c5c", "#1d4ed8", "#d97706", "#dc2626", "#16a34a", "#7c3aed"];
+            const palette = ["#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#B07AA1", "#9C755F", "#BAB0AC"];
+
             let currentAngle = 0;
             const segments = [];
             items.forEach((item, index) => {
@@ -1299,7 +1388,7 @@
             pieEl.style.background = `conic-gradient(${segments.join(", ")})`;
             legendEl.innerHTML = items.map((item, index) => `
                 <div class="legend-item">
-                    <span><span style="display:inline-block;width:10px;height:10px;border-radius:999px;background:${palette[index % palette.length]};margin-right:8px;"></span>${escapeHtml(item.category)}</span>
+                    <span class="legend-label"><span class="legend-dot" style="background:${palette[index % palette.length]};"></span>${escapeHtml(item.category)}</span>
                     <strong>${formatAmount(item.amount)} / ${item.share}%</strong>
                 </div>
             `).join("");
@@ -1406,9 +1495,8 @@
             const padding = { top: 18, right: 16, bottom: 36, left: 34 };
             const chartWidth = width - padding.left - padding.right;
             const chartHeight = height - padding.top - padding.bottom;
-            const rawMaxValue = Math.max(1, ...graph.flatMap((item) => [item.income, item.expense]));
-            const digit = Math.pow(10, Math.floor(Math.log10(rawMaxValue)));
-            const maxValue = Math.ceil(rawMaxValue / digit) * digit;
+            const rawMaxValue = Math.max(0, ...graph.flatMap((item) => [item.income, item.expense]));
+            const maxValue = rawMaxValue === 0 ? 10000 : Math.max(getNiceChartMaxValue(rawMaxValue), rawMaxValue);
             const barWidth = chartWidth / graph.length * 0.35;
             const groupWidth = chartWidth / graph.length;
 
@@ -1416,10 +1504,10 @@
             context.fillStyle = "#667085";
             context.font = "12px sans-serif";
 
-            for (let step = 0; step <= 4; step += 1) {
-                const y = padding.top + chartHeight - (chartHeight / 4) * step;
+            for (let step = 0; step <= 5; step += 1) {
+                const y = padding.top + chartHeight - (chartHeight / 5) * step;
                 context.beginPath(); context.moveTo(padding.left, y); context.lineTo(width - padding.right, y); context.stroke();
-                context.fillText(Math.round((maxValue / 4) * step).toLocaleString("ja-JP"), 6, y + 4);
+                context.fillText(Math.round((maxValue / 5) * step).toLocaleString("ja-JP"), 6, y + 4);
             }
 
             graph.forEach((item, index) => {
@@ -1537,6 +1625,8 @@
             document.getElementById("averageDailyExpense").textContent = formatAmount(summary.totals.averageDailyExpense);
             renderCategoryPie(summary.categoryBreakdown, elements.expenseCategoryPie, elements.expenseCategoryLegend, "支出データなし");
             renderCategoryPie(summary.incomeCategoryBreakdown, elements.incomeCategoryPie, elements.incomeCategoryLegend, "収入データなし");
+            renderCategoryPie(summary.paymentMethodBreakdown, elements.expensePaymentMethodPie, elements.expensePaymentMethodLegend, "支払い方法データなし");
+            renderCategoryPie(summary.incomePaymentMethodBreakdown, elements.incomePaymentMethodPie, elements.incomePaymentMethodLegend, "支払い方法データなし");
             latestAnalysisTransactions = summary.transactions || [];
             renderCalendar(summary.dailyRows);
         }
@@ -1598,6 +1688,14 @@
         }
 
         function renderSavings(data) {
+            const savingsPanel = document.getElementById("savingsSummaryPanel");
+            const goalProgress = data.goalProgress ?? 0;
+            savingsPanel.classList.remove("tone-low", "tone-mid", "tone-high", "tone-full");
+            if (goalProgress >= 100) savingsPanel.classList.add("tone-full");
+            else if (goalProgress >= 60) savingsPanel.classList.add("tone-high");
+            else if (goalProgress >= 25) savingsPanel.classList.add("tone-mid");
+            else savingsPanel.classList.add("tone-low");
+
             document.getElementById("currentSavings").textContent = formatAmount(data.totalSavings);
             document.getElementById("savingsGoalDisplay").textContent = data.savingsGoal > 0 ? formatAmount(data.savingsGoal) : "未設定";
             document.getElementById("goalProgress").textContent = data.goalProgress === null ? "-" : `${data.goalProgress}%`;
@@ -1897,14 +1995,15 @@
             const names = categories.filter((c) => c.kind === "EXPENSE").map((c) => c.name);
             select.innerHTML = names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
             if (names.includes(previous)) select.value = previous;
+            else if (names.length > 0) select.value = names[0];
         }
 
         function renderBudgetList() {
             const listEl = document.getElementById("budgetList");
             listEl.innerHTML = budgets.length
                 ? budgets.map((b) => `
-                    <div class="category-manage-row">
-                        <span class="category-label" style="flex: 1;">${escapeHtml(b.category)}</span>
+                    <div class="budget-row">
+                        <span class="category-label">${escapeHtml(b.category)}：</span>
                         <input type="number" min="0" class="budget-amount-input" data-category="${escapeHtml(b.category)}" value="${b.amount}">
                         <button type="button" class="remove-btn budget-delete" data-category="${escapeHtml(b.category)}" title="この予算を削除">×</button>
                     </div>

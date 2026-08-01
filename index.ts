@@ -114,6 +114,33 @@ function parseDateInput(value?: string) {
   return new Date(`${value}T12:00:00.000Z`);
 }
 
+function toUtcNoonDate(date: Date) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12),
+  );
+}
+
+function addDaysUtc(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return toUtcNoonDate(next);
+}
+
+function addMonthsKeepingDay(date: Date, months: number, dayOfMonth: number) {
+  const target = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months + 1, 0, 12),
+  );
+  const lastDayOfTargetMonth = target.getUTCDate();
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth() + months,
+      Math.min(dayOfMonth, lastDayOfTargetMonth),
+      12,
+    ),
+  );
+}
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("ja-JP").format(value);
 }
@@ -144,6 +171,113 @@ function transactionToView(transaction: TransactionRecord) {
     occurredAt: toIsoDate(transaction.occurredAt),
     amountLabel: formatCurrency(transaction.amount),
   };
+}
+
+function buildSubscriptionOccurrences(
+  subscription: db.SubscriptionRow,
+  limitDate: Date,
+) {
+  const startDate =
+    parseDateInput(subscription.firstPaymentDate ?? "") ??
+    toUtcNoonDate(subscription.createdAt);
+  if (startDate > limitDate) return [];
+
+  const occurrences: Date[] = [];
+  const intervalValue = Math.max(1, subscription.intervalValue || 1);
+  if (subscription.intervalUnit === "DAY") {
+    let current = startDate;
+    while (current <= limitDate) {
+      occurrences.push(current);
+      current = addDaysUtc(current, intervalValue);
+    }
+    return occurrences;
+  }
+
+  const dayOfMonth = startDate.getUTCDate();
+  let current = startDate;
+  while (current <= limitDate) {
+    occurrences.push(current);
+    current = addMonthsKeepingDay(current, intervalValue, dayOfMonth);
+  }
+  return occurrences;
+}
+
+async function syncSubscriptionTransactions(userId: number) {
+  const [subscriptions, transactions] = await Promise.all([
+    db.listSubscriptions(userId),
+    db.listTransactions(userId),
+  ]);
+
+  const existing = new Set(
+    transactions
+      .filter(
+        (transaction) =>
+          transaction.sourceType === "SUBSCRIPTION" &&
+          transaction.subscriptionId !== null,
+      )
+      .map(
+        (transaction) =>
+          `${transaction.subscriptionId}:${toIsoDate(transaction.occurredAt)}`,
+      ),
+  );
+
+  const today = toUtcNoonDate(new Date());
+  const creates: Promise<db.TransactionRow | null>[] = [];
+
+  for (const subscription of subscriptions) {
+    const stoppedAt = subscription.stoppedAt
+      ? parseDateInput(subscription.stoppedAt)
+      : null;
+    const activeLimit = subscription.active ? today : (stoppedAt ?? today);
+    for (const occurrence of buildSubscriptionOccurrences(
+      subscription,
+      activeLimit,
+    )) {
+      const key = `${subscription.id}:${toIsoDate(occurrence)}`;
+      if (existing.has(key)) continue;
+      existing.add(key);
+      creates.push(
+        db.createSubscriptionTransactionIfMissing(userId, {
+          kind: "EXPENSE",
+          amount: subscription.amount,
+          occurredAt: occurrence,
+          category: subscription.category,
+          paymentMethod: subscription.paymentMethod,
+          memo: `サブスク: ${subscription.name}`,
+          sourceType: "SUBSCRIPTION",
+          subscriptionId: subscription.id,
+        }),
+      );
+    }
+  }
+
+  if (creates.length > 0) {
+    // 同時実行で他のリクエストが先に同じ日付分を作っていても（ON CONFLICT DO NOTHING で
+    // 何も起きない＝null が返るだけ）、1件の重複が他の正常な同期を巻き込んで失敗させないようにする
+    await Promise.allSettled(creates);
+  }
+}
+
+async function syncSubscriptionTransactionsSafely(userId: number) {
+  try {
+    await syncSubscriptionTransactions(userId);
+  } catch (error) {
+    console.error(
+      "サブスク自動記録の同期に失敗しましたが、画面表示は継続します:",
+      error,
+    );
+  }
+}
+
+async function syncAllSubscriptionTransactionsSafely() {
+  try {
+    const userIds = await db.listSubscriptionOwnerIds();
+    await Promise.all(
+      userIds.map((userId) => syncSubscriptionTransactionsSafely(userId)),
+    );
+  } catch (error) {
+    console.error("サブスク定期同期に失敗しましたが、処理は継続します:", error);
+  }
 }
 
 function buildTransactionData(
@@ -250,12 +384,33 @@ function buildCategoryBreakdown(
   transactions: TransactionRecord[],
   kind: TransactionKind = "EXPENSE",
 ) {
+  return buildTransactionBreakdown(
+    transactions,
+    kind,
+    (transaction) => transaction.category,
+  );
+}
+
+function buildPaymentMethodBreakdown(
+  transactions: TransactionRecord[],
+  kind: TransactionKind = "EXPENSE",
+) {
+  return buildTransactionBreakdown(
+    transactions,
+    kind,
+    (transaction) => transaction.paymentMethod,
+  );
+}
+
+function buildTransactionBreakdown(
+  transactions: TransactionRecord[],
+  kind: TransactionKind,
+  pickLabel: (transaction: TransactionRecord) => string,
+) {
   const buckets = new Map<string, number>();
   for (const transaction of transactions.filter((item) => item.kind === kind)) {
-    buckets.set(
-      transaction.category,
-      (buckets.get(transaction.category) ?? 0) + transaction.amount,
-    );
+    const label = pickLabel(transaction);
+    buckets.set(label, (buckets.get(label) ?? 0) + transaction.amount);
   }
   const total = sum([...buckets.values()]);
   return [...buckets.entries()]
@@ -266,6 +421,15 @@ function buildCategoryBreakdown(
       amountLabel: formatCurrency(amount),
       share: total === 0 ? 0 : Math.round((amount / total) * 1000) / 10,
     }));
+}
+
+function getNiceChartMaxValue(rawMaxValue: number) {
+  if (rawMaxValue <= 0) return 10_000;
+  const exponent = Math.floor(Math.log10(rawMaxValue));
+  const base = 10 ** exponent;
+  const scaled = rawMaxValue / base;
+  const rounded = scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10;
+  return rounded * base;
 }
 
 function buildMonthlyGraph(transactions: TransactionRecord[], year: number) {
@@ -384,6 +548,14 @@ async function buildMonthSummary(userId: number, monthKey: string) {
     dailyRows: buildDailyRows(transactions, monthKey),
     categoryBreakdown: buildCategoryBreakdown(transactions, "EXPENSE"),
     incomeCategoryBreakdown: buildCategoryBreakdown(transactions, "INCOME"),
+    paymentMethodBreakdown: buildPaymentMethodBreakdown(
+      transactions,
+      "EXPENSE",
+    ),
+    incomePaymentMethodBreakdown: buildPaymentMethodBreakdown(
+      transactions,
+      "INCOME",
+    ),
   };
 }
 
@@ -647,6 +819,27 @@ const CODE_TTL_MS = 10 * 60 * 1000;
 const CODE_REQUEST_COOLDOWN_MS = 60 * 1000;
 const MAX_CODE_ATTEMPTS = 5;
 
+function buildUsernameBase(email: string) {
+  const localPart = email.split("@")[0] || "user";
+  const normalized = localPart
+    .replace(/[^a-zA-Z0-9_.-]/g, "")
+    .replace(/^[_.-]+|[_.-]+$/g, "")
+    .slice(0, 24);
+  return normalized || "user";
+}
+
+async function generateUniqueUsername(email: string) {
+  const base = buildUsernameBase(email);
+  for (let index = 0; index < 1000; index += 1) {
+    const suffix = index === 0 ? "" : `-${index + 1}`;
+    const candidate = `${base}${suffix}`.slice(0, 32);
+    if (!USERNAME_RE.test(candidate)) continue;
+    const existing = await db.findUserByUsername(candidate);
+    if (!existing) return candidate;
+  }
+  return `user-${Date.now()}`.slice(0, 32);
+}
+
 // メール認証コードの連投を防ぐ簡易クールダウン（メモリ上のみ。再起動でリセットされます）
 const lastCodeRequestAt = new Map<string, number>();
 
@@ -673,6 +866,59 @@ app.get("/login", (req, res) => {
     return;
   }
   res.render("login", { error: null });
+});
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    const password = String(req.body.password || "");
+
+    if (!EMAIL_RE.test(email)) {
+      res
+        .status(400)
+        .json({ message: "正しいメールアドレスを入力してください。" });
+      return;
+    }
+    if (password.length < 8) {
+      res
+        .status(400)
+        .json({ message: "パスワードは8文字以上にしてください。" });
+      return;
+    }
+
+    const existing = await db.findUserByEmail(email);
+    if (existing) {
+      res
+        .status(409)
+        .json({ message: "このメールアドレスは既に登録されています。" });
+      return;
+    }
+
+    const username = await generateUniqueUsername(email);
+    const user = await db.createUser(username, email, hashSecret(password));
+    await db.createDefaultCategories(user.id, [
+      ...DEFAULT_EXPENSE_CATEGORIES.map((name) => ({
+        name,
+        kind: "EXPENSE" as const,
+      })),
+      ...DEFAULT_INCOME_CATEGORIES.map((name) => ({
+        name,
+        kind: "INCOME" as const,
+      })),
+    ]);
+    await db.createDefaultPaymentMethods(user.id, DEFAULT_PAYMENT_METHODS);
+
+    res.setHeader(
+      "Set-Cookie",
+      sessionCookieHeader(createSessionCookieValue(user.id), IS_PRODUCTION),
+    );
+    res.status(201).json({ user: userPublicView(user) });
+  } catch (error) {
+    console.error("登録に失敗:", error);
+    res.status(500).json({ message: "登録に失敗しました。" });
+  }
 });
 
 app.get("/logout", (req, res) => {
@@ -1195,6 +1441,7 @@ app.get("/", requireAuthPage, async (req, res) => {
     const savingsGoal = user.savingsGoalAmount ?? 0;
 
     await ensureDefaultCategoriesAndPaymentMethods(user.id);
+    await syncSubscriptionTransactionsSafely(user.id);
 
     const [
       monthSummary,
@@ -1246,6 +1493,12 @@ app.get("/", requireAuthPage, async (req, res) => {
         subscriptions: subscriptions.map((item) => ({
           ...item,
           amountLabel: formatCurrency(item.amount),
+          intervalLabel:
+            item.intervalUnit === "DAY"
+              ? `${item.intervalValue}日ごと`
+              : `${item.intervalValue}ヶ月ごと`,
+          firstPaymentDateLabel: item.firstPaymentDate ?? "未設定",
+          statusLabel: item.active ? "稼働中" : "停止中",
         })),
         budgets,
         budgetInsights,
@@ -1266,6 +1519,7 @@ app.get("/api/transactions", requireAuthApi, async (req, res) => {
     const monthKey = parseMonthKey(
       req.query.month ? String(req.query.month) : undefined,
     );
+    await syncSubscriptionTransactionsSafely(req.user!.id);
     const transactions = await fetchTransactions(req.user!.id, monthKey);
     res.json({ monthKey, items: transactions });
   } catch (error) {
@@ -1330,6 +1584,7 @@ app.delete("/api/transactions/:id", requireAuthApi, async (req, res) => {
 app.get("/api/analytics/summary", requireAuthApi, async (req, res) => {
   try {
     const monthKey = parseMonthKey(String(req.query.month ?? ""));
+    await syncSubscriptionTransactionsSafely(req.user!.id);
     const summary = await buildMonthSummary(req.user!.id, monthKey);
     res.json(summary);
   } catch (error) {
@@ -1344,6 +1599,7 @@ app.get("/api/analytics/monthly", requireAuthApi, async (req, res) => {
       String(req.query.year || new Date().getUTCFullYear()),
       10,
     );
+    await syncSubscriptionTransactionsSafely(req.user!.id);
     const graph = await getYearlyGraphData(req.user!.id, year);
     res.json({ year, items: graph });
   } catch (error) {
@@ -1356,6 +1612,7 @@ app.get("/api/analytics/savings", requireAuthApi, async (req, res) => {
   try {
     const monthKey = parseMonthKey(String(req.query.month ?? ""));
     const savingsGoal = req.user!.savingsGoalAmount ?? 0;
+    await syncSubscriptionTransactionsSafely(req.user!.id);
     const savings = await buildSavingsAnalytics(
       req.user!.id,
       monthKey,
@@ -1371,6 +1628,7 @@ app.get("/api/analytics/savings", requireAuthApi, async (req, res) => {
 app.get("/api/analytics/budget-insights", requireAuthApi, async (req, res) => {
   try {
     const monthKey = parseMonthKey(String(req.query.month ?? ""));
+    await syncSubscriptionTransactions(req.user!.id);
     const insights = await buildBudgetInsights(req.user!.id, monthKey);
     res.json(insights);
   } catch (error) {
@@ -1382,6 +1640,7 @@ app.get("/api/analytics/budget-insights", requireAuthApi, async (req, res) => {
 app.get("/api/calendar", requireAuthApi, async (req, res) => {
   try {
     const monthKey = parseMonthKey(String(req.query.month ?? ""));
+    await syncSubscriptionTransactions(req.user!.id);
     const summary = await buildMonthSummary(req.user!.id, monthKey);
     res.json({
       monthKey,
@@ -1648,6 +1907,12 @@ app.get("/api/subscriptions", requireAuthApi, async (req, res) => {
       items: items.map((item) => ({
         ...item,
         amountLabel: formatCurrency(item.amount),
+        intervalLabel:
+          item.intervalUnit === "DAY"
+            ? `${item.intervalValue}日ごと`
+            : `${item.intervalValue}ヶ月ごと`,
+        firstPaymentDateLabel: item.firstPaymentDate ?? "未設定",
+        statusLabel: item.active ? "稼働中" : "停止中",
       })),
     });
   } catch (error) {
@@ -1657,12 +1922,26 @@ app.get("/api/subscriptions", requireAuthApi, async (req, res) => {
 });
 
 function buildSubscriptionData(body: any): db.SubscriptionInput {
+  const parsedFirstPaymentDate = parseDateInput(
+    String(body.firstPaymentDate || ""),
+  );
+  const firstPaymentDate = parsedFirstPaymentDate
+    ? toIsoDate(parsedFirstPaymentDate)
+    : null;
+  const intervalUnit =
+    String(body.intervalUnit || "MONTH").toUpperCase() === "DAY"
+      ? "DAY"
+      : "MONTH";
+  const intervalValue = Math.max(1, clampInt(body.intervalValue, 1));
   return {
     name: String(body.name || "").trim() || "名称未設定",
     amount: clampInt(body.amount),
     category: String(body.category || "未分類"),
     paymentMethod: String(body.paymentMethod || "その他").trim() || "その他",
-    billingDay: Math.min(31, Math.max(1, clampInt(body.billingDay, 1))),
+    intervalValue,
+    intervalUnit,
+    firstPaymentDate,
+    billingDay: firstPaymentDate ? Number(firstPaymentDate.slice(-2)) : 1,
     memo: String(body.memo || "").trim() || null,
   };
 }
@@ -1677,6 +1956,12 @@ app.post("/api/subscriptions", requireAuthApi, async (req, res) => {
       subscription: {
         ...subscription,
         amountLabel: formatCurrency(subscription.amount),
+        intervalLabel:
+          subscription.intervalUnit === "DAY"
+            ? `${subscription.intervalValue}日ごと`
+            : `${subscription.intervalValue}ヶ月ごと`,
+        firstPaymentDateLabel: subscription.firstPaymentDate ?? "未設定",
+        statusLabel: subscription.active ? "稼働中" : "停止中",
       },
     });
   } catch (error) {
@@ -1700,11 +1985,45 @@ app.put("/api/subscriptions/:id", requireAuthApi, async (req, res) => {
       subscription: {
         ...subscription,
         amountLabel: formatCurrency(subscription.amount),
+        intervalLabel:
+          subscription.intervalUnit === "DAY"
+            ? `${subscription.intervalValue}日ごと`
+            : `${subscription.intervalValue}ヶ月ごと`,
+        firstPaymentDateLabel: subscription.firstPaymentDate ?? "未設定",
+        statusLabel: subscription.active ? "稼働中" : "停止中",
       },
     });
   } catch (error) {
     console.error("サブスクの更新に失敗:", error);
     res.status(500).json({ message: "サブスクの更新に失敗しました。" });
+  }
+});
+
+app.post("/api/subscriptions/:id/stop", requireAuthApi, async (req, res) => {
+  try {
+    const subscription = await db.stopSubscription(
+      req.user!.id,
+      clampInt(req.params.id),
+    );
+    if (!subscription) {
+      res.status(404).json({ message: "サブスクが見つかりません。" });
+      return;
+    }
+    res.json({
+      subscription: {
+        ...subscription,
+        amountLabel: formatCurrency(subscription.amount),
+        intervalLabel:
+          subscription.intervalUnit === "DAY"
+            ? `${subscription.intervalValue}日ごと`
+            : `${subscription.intervalValue}ヶ月ごと`,
+        firstPaymentDateLabel: subscription.firstPaymentDate ?? "未設定",
+        statusLabel: subscription.active ? "稼働中" : "停止中",
+      },
+    });
+  } catch (error) {
+    console.error("サブスクの停止に失敗:", error);
+    res.status(500).json({ message: "サブスクの停止に失敗しました。" });
   }
 });
 
@@ -1771,6 +2090,14 @@ async function start() {
   } catch (error) {
     console.error("マイグレーションに失敗:", error);
   }
+
+  await syncAllSubscriptionTransactionsSafely();
+  setInterval(
+    () => {
+      void syncAllSubscriptionTransactionsSafely();
+    },
+    15 * 60 * 1000,
+  );
 
   app.listen(PORT, () => {
     console.log(`サーバーが動いたぞ！ http://localhost:${PORT}`);

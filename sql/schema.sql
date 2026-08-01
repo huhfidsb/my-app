@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   memo              TEXT,
   receipt_image_url TEXT,
   receipt_text      TEXT,
+  source_type       TEXT NOT NULL DEFAULT 'MANUAL',
+  subscription_id   INTEGER,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -84,6 +86,9 @@ CREATE INDEX IF NOT EXISTS transactions_user_id_idx ON transactions(user_id);
 -- 旧バージョン（満足度・投資消費浪費の記録）からのアップグレード用
 ALTER TABLE transactions DROP COLUMN IF EXISTS satisfaction;
 ALTER TABLE transactions DROP COLUMN IF EXISTS spending_style;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'MANUAL';
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS subscription_id INTEGER;
+CREATE UNIQUE INDEX IF NOT EXISTS transactions_subscription_occurrence_idx ON transactions(subscription_id, occurred_at) WHERE subscription_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS split_settlements (
   id                  SERIAL PRIMARY KEY,
@@ -107,11 +112,22 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   category       TEXT NOT NULL,
   payment_method TEXT NOT NULL,
   billing_day    INTEGER NOT NULL DEFAULT 1, -- 毎月の支払日（1〜31）
+  interval_value INTEGER NOT NULL DEFAULT 1,
+  interval_unit  TEXT NOT NULL DEFAULT 'MONTH',
+  first_payment_date DATE,
+  active         BOOLEAN NOT NULL DEFAULT TRUE,
+  stopped_at     DATE,
   memo           TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS subscriptions_user_idx ON subscriptions(user_id);
+
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS interval_value INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS interval_unit TEXT NOT NULL DEFAULT 'MONTH';
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS first_payment_date DATE;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS stopped_at DATE;
 
 -- 月予算（カテゴリーごと・月ごと）
 CREATE TABLE IF NOT EXISTS budgets (

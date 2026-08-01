@@ -26,10 +26,12 @@ npm start
 ```
 SMTP_HOST="smtp.example.com"
 SMTP_PORT="587"
-SMTP_USER="user@example.com"
-SMTP_PASS="xxxxxxxx"
+SMTP_USER="noreply.moneypilot@gmail.com"
+SMTP_PASS="<ここには実パスワードを入れ、Gitにはコミットしない>"
 MAIL_FROM="MoneyPilot <no-reply@example.com>"
 ```
+
+`SMTP_PASS` のような秘密情報は、`.env` やデプロイ先の secret/環境変数にだけ置いてください。コードや README には残さない運用にしておくと、安全に管理できます。
 
 ## 画面レイアウトについて
 

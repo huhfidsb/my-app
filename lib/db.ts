@@ -32,6 +32,8 @@ export type TransactionRow = {
   memo: string | null;
   receiptImageUrl: string | null;
   receiptText: string | null;
+  sourceType: "MANUAL" | "SUBSCRIPTION";
+  subscriptionId: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -101,6 +103,9 @@ function mapTransaction(row: any): TransactionRow {
     memo: row.memo,
     receiptImageUrl: row.receipt_image_url,
     receiptText: row.receipt_text,
+    sourceType: row.source_type || "MANUAL",
+    subscriptionId:
+      row.subscription_id === null ? null : Number(row.subscription_id),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -506,6 +511,8 @@ export type TransactionInput = {
   category: string;
   paymentMethod: string;
   memo: string | null;
+  sourceType?: "MANUAL" | "SUBSCRIPTION";
+  subscriptionId?: number | null;
 };
 
 export async function listTransactions(
@@ -533,8 +540,8 @@ export async function createTransaction(
 ): Promise<TransactionRow> {
   const { rows } = await pool.query(
     `INSERT INTO transactions
-      (user_id, kind, amount, occurred_at, category, payment_method, memo)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      (user_id, kind, amount, occurred_at, category, payment_method, memo, source_type, subscription_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
     [
       userId,
       data.kind,
@@ -543,9 +550,38 @@ export async function createTransaction(
       data.category,
       data.paymentMethod,
       data.memo,
+      data.sourceType || "MANUAL",
+      data.subscriptionId ?? null,
     ],
   );
   return mapTransaction(rows[0]);
+}
+
+// サブスク自動同期専用: 同時実行などで同じ(subscription_id, occurred_at)の組が
+// 既に存在する場合はエラーにせず何もしない（null を返す）。
+export async function createSubscriptionTransactionIfMissing(
+  userId: number,
+  data: TransactionInput,
+): Promise<TransactionRow | null> {
+  const { rows } = await pool.query(
+    `INSERT INTO transactions
+      (user_id, kind, amount, occurred_at, category, payment_method, memo, source_type, subscription_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (subscription_id, occurred_at) WHERE subscription_id IS NOT NULL DO NOTHING
+     RETURNING *`,
+    [
+      userId,
+      data.kind,
+      data.amount,
+      data.occurredAt,
+      data.category,
+      data.paymentMethod,
+      data.memo,
+      data.sourceType || "MANUAL",
+      data.subscriptionId ?? null,
+    ],
+  );
+  return rows[0] ? mapTransaction(rows[0]) : null;
 }
 
 export async function updateTransaction(
@@ -687,10 +723,22 @@ export type SubscriptionRow = {
   category: string;
   paymentMethod: string;
   billingDay: number;
+  intervalValue: number;
+  intervalUnit: "DAY" | "MONTH";
+  firstPaymentDate: string | null;
+  active: boolean;
+  stoppedAt: string | null;
   memo: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+function formatDateOnlyLocal(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 function mapSubscription(row: any): SubscriptionRow {
   return {
@@ -700,7 +748,16 @@ function mapSubscription(row: any): SubscriptionRow {
     amount: Number(row.amount),
     category: row.category,
     paymentMethod: row.payment_method,
-    billingDay: row.billing_day,
+    billingDay: Number(row.billing_day),
+    intervalValue: Number(row.interval_value),
+    intervalUnit: row.interval_unit,
+    firstPaymentDate: row.first_payment_date
+      ? formatDateOnlyLocal(new Date(row.first_payment_date))
+      : null,
+    active: row.active,
+    stoppedAt: row.stopped_at
+      ? formatDateOnlyLocal(new Date(row.stopped_at))
+      : null,
     memo: row.memo,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -713,6 +770,9 @@ export type SubscriptionInput = {
   category: string;
   paymentMethod: string;
   billingDay: number;
+  intervalValue: number;
+  intervalUnit: "DAY" | "MONTH";
+  firstPaymentDate: string | null;
   memo: string | null;
 };
 
@@ -720,7 +780,7 @@ export async function listSubscriptions(
   userId: number,
 ): Promise<SubscriptionRow[]> {
   const { rows } = await pool.query(
-    "SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY billing_day ASC, id ASC",
+    "SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY COALESCE(first_payment_date, created_at::date) ASC, billing_day ASC, id ASC",
     [userId],
   );
   return rows.map(mapSubscription);
@@ -731,8 +791,9 @@ export async function createSubscription(
   data: SubscriptionInput,
 ): Promise<SubscriptionRow> {
   const { rows } = await pool.query(
-    `INSERT INTO subscriptions (user_id, name, amount, category, payment_method, billing_day, memo)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    `INSERT INTO subscriptions (
+      user_id, name, amount, category, payment_method, billing_day, interval_value, interval_unit, first_payment_date, memo, active, stopped_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE, NULL) RETURNING *`,
     [
       userId,
       data.name,
@@ -740,6 +801,9 @@ export async function createSubscription(
       data.category,
       data.paymentMethod,
       data.billingDay,
+      data.intervalValue,
+      data.intervalUnit,
+      data.firstPaymentDate,
       data.memo,
     ],
   );
@@ -753,7 +817,7 @@ export async function updateSubscription(
 ): Promise<SubscriptionRow | null> {
   const { rows } = await pool.query(
     `UPDATE subscriptions SET
-      name = $3, amount = $4, category = $5, payment_method = $6, billing_day = $7, memo = $8, updated_at = now()
+      name = $3, amount = $4, category = $5, payment_method = $6, billing_day = $7, interval_value = $8, interval_unit = $9, first_payment_date = $10, memo = $11, updated_at = now()
      WHERE id = $1 AND user_id = $2 RETURNING *`,
     [
       id,
@@ -763,17 +827,40 @@ export async function updateSubscription(
       data.category,
       data.paymentMethod,
       data.billingDay,
+      data.intervalValue,
+      data.intervalUnit,
+      data.firstPaymentDate,
       data.memo,
     ],
   );
   return rows[0] ? mapSubscription(rows[0]) : null;
 }
 
+export async function stopSubscription(userId: number, id: number) {
+  const { rows } = await pool.query(
+    `UPDATE subscriptions SET active = FALSE, stopped_at = COALESCE(stopped_at, current_date), updated_at = now()
+     WHERE id = $1 AND user_id = $2 RETURNING *`,
+    [id, userId],
+  );
+  return rows[0] ? mapSubscription(rows[0]) : null;
+}
+
 export async function deleteSubscription(userId: number, id: number) {
+  await pool.query(
+    "DELETE FROM transactions WHERE user_id = $1 AND subscription_id = $2",
+    [userId, id],
+  );
   await pool.query("DELETE FROM subscriptions WHERE id = $1 AND user_id = $2", [
     id,
     userId,
   ]);
+}
+
+export async function listSubscriptionOwnerIds(): Promise<number[]> {
+  const { rows } = await pool.query(
+    "SELECT DISTINCT user_id FROM subscriptions ORDER BY user_id ASC",
+  );
+  return rows.map((row) => Number(row.user_id));
 }
 
 // ---------- budgets（月予算） ----------
