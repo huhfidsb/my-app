@@ -728,6 +728,7 @@ export type SubscriptionRow = {
   firstPaymentDate: string | null;
   active: boolean;
   stoppedAt: string | null;
+  pausedRanges: { from: string; to: string }[];
   memo: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -758,6 +759,7 @@ function mapSubscription(row: any): SubscriptionRow {
     stoppedAt: row.stopped_at
       ? formatDateOnlyLocal(new Date(row.stopped_at))
       : null,
+    pausedRanges: Array.isArray(row.paused_ranges) ? row.paused_ranges : [],
     memo: row.memo,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -839,6 +841,25 @@ export async function updateSubscription(
 export async function stopSubscription(userId: number, id: number) {
   const { rows } = await pool.query(
     `UPDATE subscriptions SET active = FALSE, stopped_at = COALESCE(stopped_at, current_date), updated_at = now()
+     WHERE id = $1 AND user_id = $2 RETURNING *`,
+    [id, userId],
+  );
+  return rows[0] ? mapSubscription(rows[0]) : null;
+}
+
+export async function resumeSubscription(userId: number, id: number) {
+  // 停止していた期間を paused_ranges に記録してから再開する。
+  // これにより、再開後に停止していた期間分の取引が過去に遡って作成されるのを防ぐ。
+  const { rows } = await pool.query(
+    `UPDATE subscriptions SET
+      active = TRUE,
+      paused_ranges = CASE
+        WHEN stopped_at IS NOT NULL
+          THEN paused_ranges || jsonb_build_array(jsonb_build_object('from', stopped_at, 'to', current_date))
+        ELSE paused_ranges
+      END,
+      stopped_at = NULL,
+      updated_at = now()
      WHERE id = $1 AND user_id = $2 RETURNING *`,
     [id, userId],
   );

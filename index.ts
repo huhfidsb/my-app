@@ -202,6 +202,15 @@ function buildSubscriptionOccurrences(
   return occurrences;
 }
 
+function isDateWithinPausedRanges(
+  dateIso: string,
+  pausedRanges: { from: string; to: string }[],
+) {
+  return pausedRanges.some(
+    (range) => dateIso >= range.from && dateIso < range.to,
+  );
+}
+
 async function syncSubscriptionTransactions(userId: number) {
   const [subscriptions, transactions] = await Promise.all([
     db.listSubscriptions(userId),
@@ -233,7 +242,10 @@ async function syncSubscriptionTransactions(userId: number) {
       subscription,
       activeLimit,
     )) {
-      const key = `${subscription.id}:${toIsoDate(occurrence)}`;
+      const occurrenceIso = toIsoDate(occurrence);
+      if (isDateWithinPausedRanges(occurrenceIso, subscription.pausedRanges))
+        continue;
+      const key = `${subscription.id}:${occurrenceIso}`;
       if (existing.has(key)) continue;
       existing.add(key);
       creates.push(
@@ -2024,6 +2036,36 @@ app.post("/api/subscriptions/:id/stop", requireAuthApi, async (req, res) => {
   } catch (error) {
     console.error("サブスクの停止に失敗:", error);
     res.status(500).json({ message: "サブスクの停止に失敗しました。" });
+  }
+});
+
+app.post("/api/subscriptions/:id/resume", requireAuthApi, async (req, res) => {
+  try {
+    const subscription = await db.resumeSubscription(
+      req.user!.id,
+      clampInt(req.params.id),
+    );
+    if (!subscription) {
+      res.status(404).json({ message: "サブスクが見つかりません。" });
+      return;
+    }
+    // 再開直後に、今日時点までの発生日を反映させる（停止していた期間は paused_ranges により自動で除外される）
+    await syncSubscriptionTransactions(req.user!.id);
+    res.json({
+      subscription: {
+        ...subscription,
+        amountLabel: formatCurrency(subscription.amount),
+        intervalLabel:
+          subscription.intervalUnit === "DAY"
+            ? `${subscription.intervalValue}日ごと`
+            : `${subscription.intervalValue}ヶ月ごと`,
+        firstPaymentDateLabel: subscription.firstPaymentDate ?? "未設定",
+        statusLabel: subscription.active ? "稼働中" : "停止中",
+      },
+    });
+  } catch (error) {
+    console.error("サブスクの再開に失敗:", error);
+    res.status(500).json({ message: "サブスクの再開に失敗しました。" });
   }
 });
 

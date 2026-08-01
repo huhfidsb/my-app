@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   first_payment_date DATE,
   active         BOOLEAN NOT NULL DEFAULT TRUE,
   stopped_at     DATE,
+  paused_ranges  JSONB NOT NULL DEFAULT '[]'::jsonb, -- 一時停止していた期間の履歴 [{"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}]
   memo           TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -128,6 +129,7 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS interval_unit TEXT NOT NULL D
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS first_payment_date DATE;
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS stopped_at DATE;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS paused_ranges JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- 月予算（カテゴリーごと・月ごと）
 CREATE TABLE IF NOT EXISTS budgets (

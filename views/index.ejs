@@ -1177,7 +1177,7 @@
                         </div>
                         <div class="entry-actions">
                             <button type="button" class="secondary btn-sm edit-subscription" data-id="${item.id}">編集</button>
-                            ${item.active ? `<button type="button" class="secondary btn-sm stop-subscription" data-id="${item.id}">停止</button>` : ""}
+                            ${item.active ? `<button type="button" class="secondary btn-sm stop-subscription" data-id="${item.id}">停止</button>` : `<button type="button" class="secondary btn-sm resume-subscription" data-id="${item.id}">再開</button>`}
                             <button type="button" class="danger btn-sm delete-subscription" data-id="${item.id}">削除</button>
                         </div>
                     </article>
@@ -1252,6 +1252,15 @@
             if (stopBtn) {
                 if (confirm("このサブスクを停止しますか？ 今後の購入は自動生成されなくなります。")) {
                     await api(`/api/subscriptions/${stopBtn.dataset.id}/stop`, { method: "POST" });
+                    await loadSubscriptions();
+                    await refreshAll();
+                }
+                return;
+            }
+            const resumeBtn = event.target.closest(".resume-subscription");
+            if (resumeBtn) {
+                if (confirm("このサブスクを再開しますか？ 停止していた期間分の取引は作成されません。")) {
+                    await api(`/api/subscriptions/${resumeBtn.dataset.id}/resume`, { method: "POST" });
                     await loadSubscriptions();
                     await refreshAll();
                 }
